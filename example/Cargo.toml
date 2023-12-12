@@ -1,0 +1,12 @@
+[package]
+name = "rust-jemalloc-pprof-example"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+jemalloc_pprof = { path = ".." }
+tokio = { version = "1", features = ["full"] }
+axum = "0.7.2"
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = { version = "0.5.4", features = ["profiling", "stats", "unprefixed_malloc_on_supported_platforms", "background_threads"] }
