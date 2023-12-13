@@ -1,6 +1,6 @@
 [package]
 name = "jemalloc_pprof"
-description = "CPU and memory profiling tools."
+description = "Convert jemalloc heap profiles to pprof to understand memory usage, fix memory leaks, and fix OOM Kills."
 version = "0.1.0"
 edition = "2021"
 publish = true
@@ -9,6 +9,9 @@ authors = [
     "Frederic Branczyk <frederic.branczyk@polarsignals.com>",
     "Brennan Vincent <brennan@materialize.com>",
 ]
+repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
+keywords = ["jemalloc", "pprof", "memory", "profiling", "heap", "leak", "observability", "monitoring", "oom", "oom-killer"]
+categories = ["development-tools", "development-tools::profiling", "development-tools::debugging", "memory-management"]
 
 [dependencies]
 anyhow = "1.0.66"
