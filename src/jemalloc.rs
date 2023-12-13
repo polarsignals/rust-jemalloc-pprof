@@ -22,7 +22,7 @@ use std::ffi::CString;
 use std::io::BufRead;
 use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
-use std::time::{Instant};
+use std::time::Instant;
 
 use anyhow::bail;
 use libc::size_t;
@@ -33,11 +33,6 @@ use tokio::sync::Mutex;
 use tracing::error;
 
 use crate::{Mapping, ProfStartTime, StackProfile, WeightedStack};
-
-// lg_prof_sample:19 is currently the default according to `man jemalloc`,
-// but let's make that explicit in case upstream ever changes it.
-// If you change this, also change `malloc_conf`.
-pub const LG_PROF_SAMPLE: size_t = 19;
 
 pub static PROF_CTL: Lazy<Option<Arc<Mutex<JemallocProfCtl>>>> = Lazy::new(|| {
     if let Some(ctl) = JemallocProfCtl::get() {
@@ -200,6 +195,13 @@ impl JemallocProfCtl {
         }
     }
 
+    /// Returns the base 2 logarithm of the sample rate (average interval, in bytes, between allocation samples).
+    pub fn lg_sample(&self) -> size_t {
+        // SAFETY: "prof.lg_sample" is documented as being readable and returning size_t:
+        // https://jemalloc.net/jemalloc.3.html#opt.lg_prof_sample
+        unsafe { raw::read(b"prof.lg_sample\0") }.unwrap()
+    }
+
     pub fn get_md(&self) -> JemallocProfMetadata {
         self.md
     }
@@ -222,9 +224,10 @@ impl JemallocProfCtl {
         // SAFETY: "prof.active" is documented as being writable and taking a bool:
         // http://jemalloc.net/jemalloc.3.html#prof.active
         unsafe { raw::write(b"prof.active\0", false) }?;
+        let rate = self.lg_sample();
         // SAFETY: "prof.reset" is documented as being writable and taking a size_t:
         // http://jemalloc.net/jemalloc.3.html#prof.reset
-        unsafe { raw::write(b"prof.reset\0", LG_PROF_SAMPLE) }?;
+        unsafe { raw::write(b"prof.reset\0", rate) }?;
 
         self.md.start_time = None;
         Ok(())
