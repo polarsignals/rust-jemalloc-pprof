@@ -10,7 +10,7 @@ authors = [
     "Brennan Vincent <brennan@materialize.com>",
 ]
 repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
-keywords = ["jemalloc", "pprof", "memory", "profiling", "heap", "leak", "observability", "monitoring", "oom", "oom-killer"]
+keywords = ["jemalloc", "pprof", "memory", "profiling", "observability"]
 categories = ["development-tools", "development-tools::profiling", "development-tools::debugging", "memory-management"]
 
 [dependencies]
