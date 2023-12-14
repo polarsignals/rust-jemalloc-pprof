@@ -1,7 +1,7 @@
 [package]
 name = "jemalloc_pprof"
 description = "Convert jemalloc heap profiles to pprof to understand memory usage, fix memory leaks, and fix OOM Kills."
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 publish = true
 license = "Apache-2.0"
@@ -15,7 +15,6 @@ categories = ["development-tools", "development-tools::profiling", "development-
 
 [dependencies]
 anyhow = "1.0.66"
-backtrace = "0.3.66"
 flate2 = "1.0.24"
 libc = "0.2.138"
 once_cell = "1.16.0"

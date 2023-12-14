@@ -87,6 +87,10 @@ pprof -http=:8080 heap.pb.gz
 
 > Note: The profiling data is not symbolized, so either `addr2line` or `llvm-addr2line` needs to be available in the path and pprof needs to be able to discover the respective debuginfos.
 
+### Writeable temporary directory
+
+The way this library works is that it creates a new temporary file (in the [platform-specific default temp dir](https://docs.rs/tempfile/latest/tempfile/struct.NamedTempFile.html)), and instructs jemalloc to dump a profile into that file. Therefore the platform respective temporary directory must be writeable by the process. After reading and converting it to pprof, the file is cleaned up via the destructor. A single profile tends to be only a few kilobytes large, so it doesn't require a significant space, but it's non-zero and needs to be writeable.
+
 ## Use with Polar Signals Cloud
 
 Polar Signals Cloud allows continuously collecting heap profiling data, so you always have the right profiling data available, and don't need to search for the right data, you already have it!
