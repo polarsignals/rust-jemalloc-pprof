@@ -41,6 +41,7 @@ pub struct SharedObject {
     pub loaded_segments: Vec<LoadedSegment>,
 }
 
+/// Build ID of a shared object.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuildId(Vec<u8>);
 

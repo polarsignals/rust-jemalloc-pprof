@@ -12,6 +12,8 @@ authors = [
 repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
 keywords = ["jemalloc", "pprof", "memory", "profiling", "observability"]
 categories = ["development-tools", "development-tools::profiling", "development-tools::debugging", "memory-management"]
+documentation = "https://docs.rs/jemalloc_pprof/latest/jemalloc_pprof/"
+website = "https://crates.io/crates/jemalloc_pprof"
 
 [dependencies]
 anyhow = "1.0.66"

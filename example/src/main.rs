@@ -22,20 +22,20 @@ async fn main() {
 }
 
 pub async fn handle_get_heap() -> Result<impl axum::response::IntoResponse, (axum::http::StatusCode, String)> {
-    let mut prof_ctl = jemalloc_pprof::jemalloc::PROF_CTL.as_ref().unwrap().lock().await;
+    let mut prof_ctl = jemalloc_pprof::PROF_CTL.as_ref().unwrap().lock().await;
     require_profiling_activated(&prof_ctl)?;
     let dump_file = prof_ctl
         .dump()
         .map_err(|err| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
     let dump_reader = std::io::BufReader::new(dump_file);
-    let profile = jemalloc_pprof::jemalloc::parse_jeheap(dump_reader)
+    let profile = jemalloc_pprof::parse_jeheap(dump_reader)
         .map_err(|err| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
     let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
     Ok(pprof)
 }
 
 /// Checks whether jemalloc profiling is activated an returns an error response if not.
-fn require_profiling_activated(prof_ctl: &jemalloc_pprof::jemalloc::JemallocProfCtl) -> Result<(), (axum::http::StatusCode, String)> {
+fn require_profiling_activated(prof_ctl: &jemalloc_pprof::JemallocProfCtl) -> Result<(), (axum::http::StatusCode, String)> {
     if prof_ctl.activated() {
         Ok(())
     } else {

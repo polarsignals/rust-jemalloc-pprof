@@ -13,17 +13,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Library to parse jemalloc heap profiling data and convert it to pprof.
+//!
+//! (1) Turn jemalloc profiling on and off, and dump heap profiles (`PROF_CTL`)
+//! (2) Parse jemalloc heap files and make them into a hierarchical format (`parse_jeheap`)
+
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::ffi::CString;
+use std::io::BufRead;
+use std::os::unix::ffi::OsStrExt;
+use std::sync::Arc;
 
+use anyhow::bail;
+use libc::size_t;
+use once_cell::sync::Lazy;
+use tempfile::NamedTempFile;
+use tikv_jemalloc_ctl::raw;
+use tokio::sync::Mutex;
+use tracing::error;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use prost::Message;
+
 mod linux;
 use linux::BuildId;
-use prost::Message;
 
 mod cast;
 use cast::{CastFrom, TryCastFrom};
@@ -31,22 +47,23 @@ use cast::{CastFrom, TryCastFrom};
 #[path = "perftools.profiles.rs"]
 mod pprof_types;
 
-pub mod jemalloc;
-
+/// Start times of the profiler.
 #[derive(Copy, Clone, Debug)]
 pub enum ProfStartTime {
     Instant(Instant),
     TimeImmemorial,
 }
 
+/// A single sample in the profile. The stack is a list of addresses.
 #[derive(Clone, Debug)]
-pub struct WeightedStack {
+struct WeightedStack {
     pub addrs: Vec<usize>,
     pub weight: f64,
 }
 
+/// A mapping of a single shared object.
 #[derive(Clone, Debug)]
-pub struct Mapping {
+struct Mapping {
     pub memory_start: usize,
     pub memory_end: usize,
     pub memory_offset: usize,
@@ -55,6 +72,7 @@ pub struct Mapping {
     pub build_id: Option<BuildId>,
 }
 
+/// A minimal representation of a profile that can be parsed from the jemalloc heap profile.
 #[derive(Default)]
 pub struct StackProfile {
     annotations: Vec<String>,
@@ -229,7 +247,7 @@ impl StringTable {
     }
 }
 
-pub struct StackProfileIter<'a> {
+struct StackProfileIter<'a> {
     inner: &'a StackProfile,
     idx: usize,
 }
@@ -246,7 +264,7 @@ impl<'a> Iterator for StackProfileIter<'a> {
 }
 
 impl StackProfile {
-    pub fn push_stack(&mut self, stack: WeightedStack, annotation: Option<&str>) {
+    fn push_stack(&mut self, stack: WeightedStack, annotation: Option<&str>) {
         let anno_idx = if let Some(annotation) = annotation {
             Some(
                 self.annotations
@@ -263,11 +281,11 @@ impl StackProfile {
         self.stacks.push((stack, anno_idx))
     }
 
-    pub fn push_mapping(&mut self, mapping: Mapping) {
+    fn push_mapping(&mut self, mapping: Mapping) {
         self.mappings.push(mapping);
     }
 
-    pub fn iter(&self) -> StackProfileIter<'_> {
+    fn iter(&self) -> StackProfileIter<'_> {
         StackProfileIter {
             inner: self,
             idx: 0,
@@ -275,18 +293,9 @@ impl StackProfile {
     }
 }
 
-static EVER_SYMBOLIZED: AtomicBool = AtomicBool::new(false);
-
-/// Check whether symbolization has ever been run in this process.
-/// This controls whether we display a warning about increasing RAM usage
-/// due to the backtrace cache on the
-/// profiler page. (Because the RAM hit is one-time, we don't need to warn if it's already happened).
-pub fn ever_symbolized() -> bool {
-    EVER_SYMBOLIZED.load(std::sync::atomic::Ordering::SeqCst)
-}
-
+/// Activate jemalloc profiling.
 pub async fn activate_jemalloc_profiling() {
-    let Some(ctl) = jemalloc::PROF_CTL.as_ref() else {
+    let Some(ctl) = PROF_CTL.as_ref() else {
         tracing::warn!("jemalloc profiling is disabled and cannot be activated");
         return;
     };
@@ -302,8 +311,9 @@ pub async fn activate_jemalloc_profiling() {
     }
 }
 
+/// Deactivate jemalloc profiling.
 pub async fn deactivate_jemalloc_profiling() {
-    let Some(ctl) = jemalloc::PROF_CTL.as_ref() else {
+    let Some(ctl) = PROF_CTL.as_ref() else {
         return; // jemalloc not enabled
     };
 
@@ -315,5 +325,224 @@ pub async fn deactivate_jemalloc_profiling() {
     match ctl.deactivate() {
         Ok(()) => tracing::info!("jemalloc profiling deactivated"),
         Err(err) => tracing::warn!("could not deactivate jemalloc profiling: {err}"),
+    }
+}
+
+/// Per-process singleton for controlling jemalloc profiling.
+pub static PROF_CTL: Lazy<Option<Arc<Mutex<JemallocProfCtl>>>> = Lazy::new(|| {
+    if let Some(ctl) = JemallocProfCtl::get() {
+        Some(Arc::new(Mutex::new(ctl)))
+    } else {
+        None
+    }
+});
+
+/// Mappings of the processes' executable and shared libraries.
+#[cfg(target_os = "linux")]
+static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
+    use crate::linux::SharedObject;
+
+    /// Build a list of mappings for the passed shared objects.
+    fn build_mappings(objects: &[SharedObject]) -> Vec<Mapping> {
+        let mut mappings = Vec::new();
+        for object in objects {
+            for segment in &object.loaded_segments {
+                let memory_start = object.base_address + segment.memory_offset;
+                mappings.push(Mapping {
+                    memory_start,
+                    memory_end: memory_start + segment.memory_size,
+                    memory_offset: segment.memory_offset,
+                    file_offset: segment.file_offset,
+                    pathname: object.path_name.clone(),
+                    build_id: object.build_id.clone(),
+                });
+            }
+        }
+        mappings
+    }
+
+    // SAFETY: We are on Linux, and this is the only place in the program this
+    // function is called.
+    match unsafe { crate::linux::collect_shared_objects() } {
+        Ok(objects) => Some(build_mappings(&objects)),
+        Err(err) => {
+            error!("build ID fetching failed: {err}");
+            None
+        }
+    }
+});
+
+#[cfg(not(target_os = "linux"))]
+static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
+    error!("build ID fetching is only supported on Linux");
+    None
+});
+
+/// Metadata about a jemalloc heap profiler.
+#[derive(Copy, Clone, Debug)]
+pub struct JemallocProfMetadata {
+    pub start_time: Option<ProfStartTime>,
+}
+
+/// A handle to control jemalloc profiling.
+#[derive(Debug)]
+pub struct JemallocProfCtl {
+    md: JemallocProfMetadata,
+}
+
+/// Parse a jemalloc profile file, producing a vector of stack traces along with their weights.
+pub fn parse_jeheap<R: BufRead>(r: R) -> anyhow::Result<StackProfile> {
+    let mut cur_stack = None;
+    let mut profile = StackProfile::default();
+    let mut lines = r.lines();
+
+    let first_line = match lines.next() {
+        Some(s) => s?,
+        None => bail!("Heap dump file was empty"),
+    };
+    // The first line of the file should be e.g. "heap_v2/524288", where the trailing
+    // number is the inverse probability of a byte being sampled.
+    let sampling_rate: f64 = str::parse(first_line.trim_start_matches("heap_v2/"))?;
+
+    while let Some(line) = lines.next() {
+        let line = line?;
+        let line = line.trim();
+
+        let words: Vec<_> = line.split_ascii_whitespace().collect();
+        if words.len() > 0 && words[0] == "@" {
+            if cur_stack.is_some() {
+                bail!("Stack without corresponding weight!")
+            }
+            let mut addrs = words[1..]
+                .iter()
+                .map(|w| {
+                    let raw = w.trim_start_matches("0x");
+                    usize::from_str_radix(raw, 16)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            addrs.reverse();
+            cur_stack = Some(addrs);
+        }
+        if words.len() > 2 && words[0] == "t*:" {
+            if let Some(addrs) = cur_stack.take() {
+                // The format here is e.g.:
+                // t*: 40274: 2822125696 [0: 0]
+                //
+                // "t*" means summary across all threads; someday we will support per-thread dumps but don't now.
+                // "40274" is the number of sampled allocations (`n_objs` here).
+                // On all released versions of jemalloc, "2822125696" is the total number of bytes in those allocations.
+                //
+                // To get the predicted number of total bytes from the sample, we need to un-bias it by following the logic in
+                // jeprof's `AdjustSamples`: https://github.com/jemalloc/jemalloc/blob/498f47e1ec83431426cdff256c23eceade41b4ef/bin/jeprof.in#L4064-L4074
+                //
+                // However, this algorithm is actually wrong: you actually need to unbias each sample _before_ you add them together, rather
+                // than adding them together first and then unbiasing the average allocation size. But the heap profile format in released versions of jemalloc
+                // does not give us access to each individual allocation, so this is the best we can do (and `jeprof` does the same).
+                //
+                // It usually seems to be at least close enough to being correct to be useful, but could be very wrong if for the same stack, there is a
+                // very large amount of variance in the amount of bytes allocated (e.g., if there is one allocation of 8 MB and 1,000,000 of 8 bytes)
+                //
+                // In the latest unreleased jemalloc sources from github, the issue is worked around by unbiasing the numbers for each sampled allocation,
+                // and then fudging them to maintain compatibility with jeprof's logic. So, once those are released and we start using them,
+                // this will become even more correct.
+                //
+                // For more details, see this doc: https://github.com/jemalloc/jemalloc/pull/1902
+                //
+                // And this gitter conversation between me (Brennan Vincent) and David Goldblatt: https://gitter.im/jemalloc/jemalloc?at=5f31b673811d3571b3bb9b6b
+                let n_objs: f64 = str::parse(words[1].trim_end_matches(':'))?;
+                let bytes_in_sampled_objs: f64 = str::parse(words[2])?;
+                let ratio = (bytes_in_sampled_objs / n_objs) / sampling_rate;
+                let scale_factor = 1.0 / (1.0 - (-ratio).exp());
+                let weight = bytes_in_sampled_objs * scale_factor;
+                profile.push_stack(WeightedStack { addrs, weight }, None);
+            }
+        }
+    }
+    if cur_stack.is_some() {
+        bail!("Stack without corresponding weight!");
+    }
+
+    if let Some(mappings) = MAPPINGS.as_ref() {
+        for mapping in mappings {
+            profile.push_mapping(mapping.clone());
+        }
+    }
+
+    Ok(profile)
+}
+
+impl JemallocProfCtl {
+    // Creates and returns the global singleton.
+    fn get() -> Option<Self> {
+        // SAFETY: "opt.prof" is documented as being readable and returning a bool:
+        // http://jemalloc.net/jemalloc.3.html#opt.prof
+        let prof_enabled: bool = unsafe { raw::read(b"opt.prof\0") }.unwrap();
+        if prof_enabled {
+            // SAFETY: "opt.prof_active" is documented as being readable and returning a bool:
+            // http://jemalloc.net/jemalloc.3.html#opt.prof_active
+            let prof_active: bool = unsafe { raw::read(b"opt.prof_active\0") }.unwrap();
+            let start_time = if prof_active {
+                Some(ProfStartTime::TimeImmemorial)
+            } else {
+                None
+            };
+            let md = JemallocProfMetadata { start_time };
+            Some(Self { md })
+        } else {
+            None
+        }
+    }
+
+    /// Returns the base 2 logarithm of the sample rate (average interval, in bytes, between allocation samples).
+    pub fn lg_sample(&self) -> size_t {
+        // SAFETY: "prof.lg_sample" is documented as being readable and returning size_t:
+        // https://jemalloc.net/jemalloc.3.html#opt.lg_prof_sample
+        unsafe { raw::read(b"prof.lg_sample\0") }.unwrap()
+    }
+
+    /// Returns the metadata of the profiler.
+    pub fn get_md(&self) -> JemallocProfMetadata {
+        self.md
+    }
+
+    /// Returns whether the profiler is active.
+    pub fn activated(&self) -> bool {
+        self.md.start_time.is_some()
+    }
+
+    /// Activate the profiler and if unset, set the start time to the current time.
+    pub fn activate(&mut self) -> Result<(), tikv_jemalloc_ctl::Error> {
+        // SAFETY: "prof.active" is documented as being writable and taking a bool:
+        // http://jemalloc.net/jemalloc.3.html#prof.active
+        unsafe { raw::write(b"prof.active\0", true) }?;
+        if self.md.start_time.is_none() {
+            self.md.start_time = Some(ProfStartTime::Instant(Instant::now()));
+        }
+        Ok(())
+    }
+
+    /// Deactivate the profiler.
+    pub fn deactivate(&mut self) -> Result<(), tikv_jemalloc_ctl::Error> {
+        // SAFETY: "prof.active" is documented as being writable and taking a bool:
+        // http://jemalloc.net/jemalloc.3.html#prof.active
+        unsafe { raw::write(b"prof.active\0", false) }?;
+        let rate = self.lg_sample();
+        // SAFETY: "prof.reset" is documented as being writable and taking a size_t:
+        // http://jemalloc.net/jemalloc.3.html#prof.reset
+        unsafe { raw::write(b"prof.reset\0", rate) }?;
+
+        self.md.start_time = None;
+        Ok(())
+    }
+
+    /// Dump a profile into a temporary file and return it.
+    pub fn dump(&mut self) -> anyhow::Result<std::fs::File> {
+        let f = NamedTempFile::new()?;
+        let path = CString::new(f.path().as_os_str().as_bytes().to_vec()).unwrap();
+
+        // SAFETY: "prof.dump" is documented as being writable and taking a C string as input:
+        // http://jemalloc.net/jemalloc.3.html#prof.dump
+        unsafe { raw::write(b"prof.dump\0", path.as_ptr()) }?;
+        Ok(f.into_file())
     }
 }
