@@ -17,15 +17,9 @@
 
 use num::traits::bounds::UpperBounded;
 use num::Signed;
-#[cfg(feature = "proptest")]
-use proptest::arbitrary::Arbitrary;
-#[cfg(feature = "proptest")]
-use proptest::strategy::{BoxedStrategy, Strategy};
 use std::error::Error;
 use std::fmt;
 use std::ops::Deref;
-#[cfg(feature = "proptest")]
-use std::ops::Range;
 
 /// A trait for safe, simple, and infallible casts.
 ///
@@ -304,20 +298,6 @@ impl CastFrom<NonNeg<i64>> for usize {
     #[allow(clippy::as_conversions)]
     fn cast_from(from: NonNeg<i64>) -> usize {
         usize::cast_from(u64::from(from))
-    }
-}
-
-#[cfg(feature = "proptest")]
-impl<T> Arbitrary for NonNeg<T>
-where
-    T: Signed + UpperBounded + fmt::Display + fmt::Debug + Copy + 'static,
-    Range<T>: Strategy<Value = T>,
-{
-    type Strategy = BoxedStrategy<Self>;
-    type Parameters = ();
-
-    fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-        (*Self::min()..*Self::max()).prop_map(NonNeg).boxed()
     }
 }
 
