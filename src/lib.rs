@@ -18,20 +18,18 @@
 use std::collections::BTreeMap;
 use std::ffi::CString;
 
+use std::io::BufReader;
 use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
 use std::time::Instant;
 
-
-
+use internal::parse_jeheap;
 use libc::size_t;
 
 use once_cell::sync::Lazy;
 use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;
-
-
 
 pub mod internal;
 
@@ -206,5 +204,15 @@ impl JemallocProfCtl {
         // http://jemalloc.net/jemalloc.3.html#prof.dump
         unsafe { raw::write(b"prof.dump\0", path.as_ptr()) }?;
         Ok(f.into_file())
+    }
+
+    /// Dump a profile in pprof format (gzipped protobuf) and
+    /// return a buffer with its contents.
+    pub fn dump_pprof(&mut self) -> anyhow::Result<Vec<u8>> {
+        let f = self.dump()?;
+        let dump_reader = BufReader::new(f);
+        let profile = parse_jeheap(dump_reader)?;
+        let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
+        Ok(pprof)
     }
 }
