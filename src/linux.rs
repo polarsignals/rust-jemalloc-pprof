@@ -18,15 +18,67 @@
 //! Utility crate to extract information about the running process.
 //!
 //! Currently only works on Linux.
-use std::fmt;
-use std::path::PathBuf;
-
 use std::ffi::{c_int, CStr, OsStr};
+use std::fmt;
 use std::os::unix::ffi::OsStrExt;
+use std::path::PathBuf;
 
 use anyhow::Context;
 use libc::{c_void, dl_iterate_phdr, dl_phdr_info, size_t, Elf64_Word, PT_LOAD, PT_NOTE};
+use once_cell::sync::Lazy;
+use tracing::error;
+
 use crate::cast::CastFrom;
+
+/// A mapping of a single shared object.
+#[derive(Clone, Debug)]
+pub struct Mapping {
+    pub memory_start: usize,
+    pub memory_end: usize,
+    pub memory_offset: usize,
+    pub file_offset: u64,
+    pub pathname: PathBuf,
+    pub build_id: Option<BuildId>,
+}
+
+/// Mappings of the processes' executable and shared libraries.
+#[cfg(target_os = "linux")]
+pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
+    /// Build a list of mappings for the passed shared objects.
+    fn build_mappings(objects: &[SharedObject]) -> Vec<Mapping> {
+        let mut mappings = Vec::new();
+        for object in objects {
+            for segment in &object.loaded_segments {
+                let memory_start = object.base_address + segment.memory_offset;
+                mappings.push(Mapping {
+                    memory_start,
+                    memory_end: memory_start + segment.memory_size,
+                    memory_offset: segment.memory_offset,
+                    file_offset: segment.file_offset,
+                    pathname: object.path_name.clone(),
+                    build_id: object.build_id.clone(),
+                });
+            }
+        }
+        mappings
+    }
+
+    // SAFETY: We are on Linux, and this is the only place in the program this
+    // function is called.
+    match unsafe { crate::linux::collect_shared_objects() } {
+        Ok(objects) => Some(build_mappings(&objects)),
+        Err(err) => {
+            error!("build ID fetching failed: {err}");
+            None
+        }
+    }
+});
+
+#[cfg(not(target_os = "linux"))]
+pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
+    error!("build ID fetching is only supported on Linux");
+    None
+});
 
 /// Information about a shared object loaded into the current process.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
