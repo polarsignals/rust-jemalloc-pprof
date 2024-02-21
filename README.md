@@ -8,6 +8,14 @@ To understand how to use this together with Polar Signals Cloud to continuously 
 
 This code was originally developed as part of [Materialize](https://github.com/MaterializeInc/materialize), and then in a collaboration extracted into this standalone library.
 
+## Requirements
+
+Currently, this library only supports Linux.
+
+Furthermore, you must be able to switch your allocator to `jemalloc`.
+If you need to continue using the default system allocator for any reason,
+this library will not be useful.
+
 ## Usage
 
 Internally this library uses [`tikv-jemalloc-ctl`](https://docs.rs/tikv-jemalloc-ctl/latest/tikv_jemalloc_ctl/) to interact with jemalloc, so to use it, you must use the jemalloc allocator via the [`tikv-jemallocator`](https://crates.io/crates/tikv-jemallocator) library.
