@@ -49,7 +49,9 @@ pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
         let mut mappings = Vec::new();
         for object in objects {
             for segment in &object.loaded_segments {
-                let memory_start = object.base_address + segment.memory_offset;
+                // I have observed that `memory_offset` can be negative on some very old
+                // versions of Linux (e.g. CentOS 7), so use wrapping add here.
+                let memory_start = object.base_address.wrapping_add(segment.memory_offset);
                 mappings.push(Mapping {
                     memory_start,
                     memory_end: memory_start + segment.memory_size,
@@ -241,8 +243,13 @@ unsafe extern "C" fn iterate_cb(
                 n_descsz: Elf64_Word,
                 n_type: Elf64_Word,
             }
-            // This is how `man dl_iterate_phdr` says to find the segment headers in memory.
-            let mut offset = usize::cast_from(ph.p_vaddr + info.dlpi_addr);
+            // This is how `man dl_iterate_phdr` says to find the
+            // segment headers in memory.
+            //
+            // Note - it seems on some old
+            // versions of Linux (I observed it on CentOS 7),
+            // `p_vaddr` can be negative, so we use wrapping add here
+            let mut offset = usize::cast_from(ph.p_vaddr.wrapping_add(info.dlpi_addr));
             let orig_offset = offset;
 
             const NT_GNU_BUILD_ID: Elf64_Word = 3;
