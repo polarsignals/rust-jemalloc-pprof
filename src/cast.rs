@@ -88,8 +88,6 @@ mod target32 {
     cast_from!(u32, usize);
     cast_from!(i32, isize);
 }
-#[cfg(target_pointer_width = "32")]
-pub use target32::*;
 
 #[cfg(target_pointer_width = "64")]
 /// Safe casts for 64bit platforms
@@ -115,8 +113,6 @@ pub mod target64 {
     cast_from!(u64, usize);
     cast_from!(i64, isize);
 }
-#[cfg(target_pointer_width = "64")]
-pub use target64::*;
 
 // TODO(petrosagg): remove these once the std From impls become const
 cast_from!(u8, u8);
