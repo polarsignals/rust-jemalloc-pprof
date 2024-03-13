@@ -104,3 +104,240 @@ The way this library works is that it creates a new temporary file (in the [plat
 Polar Signals Cloud allows continuously collecting heap profiling data, so you always have the right profiling data available, and don't need to search for the right data, you already have it!
 
 Polar Signals Cloud supports anything in the pprof format, so a process exposing the above explained pprof endpoint, can then be scraped as elaborated in the [scraping docs](https://www.polarsignals.com/docs/setup-scraper).
+
+## Use from C or C++
+
+The functionality to dump the current jemalloc heap profile in pprof
+format is exposed to C and C++ (or any other language that can use
+jemalloc and can link against libraries via the C ABI). This
+functionality is exposed via the `capi` (C API) package.
+
+### Building
+
+The following prerequisites are necessary to build the C API package:
+
+* Working Rust and C toolchains. The former can be installed by
+  following the instructions at https://rustup.rs . The latter can be
+  installed via the distribution's package manager. For example, on
+  Ubuntu, run `sudo apt install build-essential`.
+* `jemalloc` and its development headers. For example, on Ubuntu, run
+  `sudo apt install jemalloc-dev`.
+
+Once the prerequisites are installed, the library can be built by
+running `cargo build -p capi --release`. There are three files of
+interest:
+
+* The library itself, produced at
+  `target/release/libjemalloc_pprof.so`
+* A header file, at `capi/include/jemalloc_pprof.h`
+* A manual page, at `capi/man/jemalloc_pprof.3`.
+
+The procedure for installing and using these files depends on your
+distribution and build system.
+
+### Use
+
+Ensure that your binaries link against both jemalloc and
+jemalloc_pprof by passing the linker flags `-ljemalloc
+-ljemalloc_pprof`. The procedure for ensuring that these flags are
+passed depends on your build system and is currently outside the scope
+of this document.
+
+Once that is done, profiling can be enabled either by setting the
+`MALLOC_CONF` variable or by defining a symbol called `malloc_conf` in
+the binary. For example:
+
+``` shell
+export MALLOC_CONF="prof:true,prof_active:true,lg_prof_sample:19"
+```
+
+See the `jemalloc` man page for more details. When profiling is
+enabled, a profile may be dumped in pprof format via the
+`dump_jemalloc_pprof` function.
+
+### Example
+
+This program allocates between 1 and 10 MiB every 100 milliseconds,
+and dumps a profile to the file `my_profile` every 2 seconds.
+
+``` c
+#include <assert.h>
+#include <errno.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <stdio.h>
+
+#include <jemalloc_pprof.h>
+
+void
+a()
+{
+        size_t sz = 1 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+b()
+{
+        size_t sz = 2 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+c()
+{
+        size_t sz = 3 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+d()
+{
+        size_t sz = 4 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+e()
+{
+        size_t sz = 5 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+f()
+{
+        size_t sz = 6 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+g()
+{
+        size_t sz = 7 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+h()
+{
+        size_t sz = 8 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+j()
+{
+        size_t sz = 9 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void
+k()
+{
+        size_t sz = 10 * 1024 * 1024;
+        char *x = malloc(sz);
+        for (size_t i = 0; i < sz; ++i) {
+                x[i] = '\0';
+        }
+}
+
+void *
+repeatedly_dump(void *ignored)
+{
+        char *buf;
+        size_t len = 0;
+        int result;
+        for (;;) {
+                sleep(2);
+                result = dump_jemalloc_pprof(&buf, &len);
+                if (result != JP_SUCCESS) {
+                        fprintf(stderr, "errno: %d\n", errno);
+                        continue;
+                }
+                if (buf) {                        
+                        FILE *file = fopen("my_profile", "w");
+                        assert(file);
+
+                        fwrite(buf, sizeof(char), len, file);    
+                        fclose(file);
+                        printf("dumped pprof of size %lu\n", len);
+                        free(buf);
+                }
+        }
+        return NULL;
+}
+
+int
+main()
+{
+        pthread_t tid;
+        int result;
+
+        result = pthread_create(&tid, NULL, repeatedly_dump, NULL);
+        assert(!result);
+        for (;;) {
+                usleep(100000);
+                switch (rand() % 10) {
+                case 0:
+                        a();
+                        break;
+                case 1:
+                        b();
+                        break;
+                case 2:
+                        c();
+                        break;
+                case 3:
+                        d();
+                        break;
+                case 4:
+                        e();
+                        break;
+                case 5:
+                        f();
+                        break;
+                case 6:
+                        g();
+                        break;
+                case 7:
+                        h();
+                        break;
+                case 8:
+                        j();
+                        break;
+                case 9:
+                        k();
+                        break;
+                }
+        }
+}
+```

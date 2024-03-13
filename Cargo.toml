@@ -1,3 +1,6 @@
+[workspace]
+members = ["pure", "capi"]
+
 [package]
 name = "jemalloc_pprof"
 description = "Convert jemalloc heap profiles to pprof to understand memory usage, fix memory leaks, and fix OOM Kills."
@@ -15,7 +18,7 @@ categories = ["development-tools", "development-tools::profiling", "development-
 documentation = "https://docs.rs/jemalloc_pprof/latest/jemalloc_pprof/"
 homepage = "https://crates.io/crates/jemalloc_pprof"
 
-[dependencies]
+[workspace.dependencies]
 anyhow = "1.0.66"
 flate2 = "1.0.24"
 libc = "0.2.138"
@@ -27,3 +30,14 @@ tracing = "0.1.37"
 tokio = { version = "1.32.0", features = ["time", "sync"] }
 paste = "1.0.11"
 num = "0.4.0"
+errno = "0.3.8"
+
+[dependencies]
+pure = { path = "./pure" }
+libc.workspace = true
+anyhow.workspace = true
+tikv-jemalloc-ctl.workspace = true
+once_cell.workspace = true
+tracing.workspace = true
+tempfile.workspace = true
+tokio.workspace = true

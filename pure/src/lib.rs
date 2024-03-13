@@ -1,33 +1,47 @@
-// Copyright Materialize, Inc. and contributors. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License in the LICENSE file at the
-// root of this repository, or online at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-//! Lower-level parsing and processing
-//! code used internally by the higher-level convenience functions.
-
+use anyhow::bail;
+use cast::{CastFrom, TryCastFrom};
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use prost::Message;
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::bail;
-use flate2::write::GzEncoder;
-use flate2::Compression;
-use prost::Message;
-
-use crate::cast::{CastFrom, TryCastFrom};
 use crate::linux::{Mapping, MAPPINGS};
-use crate::StringTable;
+
+mod cast;
+mod linux;
+
+/// Helper struct to simplify building a `string_table` for the pprof format.
+#[derive(Default)]
+struct StringTable(BTreeMap<String, i64>);
+
+impl StringTable {
+    fn new() -> Self {
+        // Element 0 must always be the emtpy string.
+        let inner = [("".into(), 0)].into();
+        Self(inner)
+    }
+
+    fn insert(&mut self, s: &str) -> i64 {
+        if let Some(idx) = self.0.get(s) {
+            *idx
+        } else {
+            let idx = i64::try_from(self.0.len()).expect("must fit");
+            self.0.insert(s.into(), idx);
+            idx
+        }
+    }
+
+    fn finish(self) -> Vec<String> {
+        let mut vec: Vec<_> = self.0.into_iter().collect();
+        vec.sort_by_key(|(_, idx)| *idx);
+        vec.into_iter().map(|(s, _)| s).collect()
+    }
+}
+
+#[path = "perftools.profiles.rs"]
+mod pprof_types;
 
 /// A single sample in the profile. The stack is a list of addresses.
 #[derive(Clone, Debug)]
