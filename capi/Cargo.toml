@@ -1,0 +1,15 @@
+[package]
+name = "capi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+name = "jemalloc_pprof"
+
+[dependencies]
+libc.workspace = true
+anyhow.workspace = true
+tempfile.workspace = true
+pure.path = "../pure"
+errno.workspace = true

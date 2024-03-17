@@ -15,7 +15,6 @@
 
 #![doc = include_str!("../README.md")]
 
-use std::collections::BTreeMap;
 use std::ffi::CString;
 
 use std::io::BufReader;
@@ -23,56 +22,19 @@ use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
 use std::time::Instant;
 
-use internal::parse_jeheap;
+use once_cell::sync::Lazy;
+use pure::parse_jeheap;
 use libc::size_t;
 
-use once_cell::sync::Lazy;
 use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;
-
-pub mod internal;
-
-mod linux;
-
-mod cast;
-
-#[path = "perftools.profiles.rs"]
-mod pprof_types;
 
 /// Start times of the profiler.
 #[derive(Copy, Clone, Debug)]
 pub enum ProfStartTime {
     Instant(Instant),
     TimeImmemorial,
-}
-
-/// Helper struct to simplify building a `string_table` for the pprof format.
-#[derive(Default)]
-struct StringTable(BTreeMap<String, i64>);
-
-impl StringTable {
-    fn new() -> Self {
-        // Element 0 must always be the emtpy string.
-        let inner = [("".into(), 0)].into();
-        Self(inner)
-    }
-
-    fn insert(&mut self, s: &str) -> i64 {
-        if let Some(idx) = self.0.get(s) {
-            *idx
-        } else {
-            let idx = i64::try_from(self.0.len()).expect("must fit");
-            self.0.insert(s.into(), idx);
-            idx
-        }
-    }
-
-    fn finish(self) -> Vec<String> {
-        let mut vec: Vec<_> = self.0.into_iter().collect();
-        vec.sort_by_key(|(_, idx)| *idx);
-        vec.into_iter().map(|(s, _)| s).collect()
-    }
 }
 
 /// Activate jemalloc profiling.

@@ -1,0 +1,33 @@
+.TH dump_jemalloc_pprof 3 "rust-jemalloc-pprof manual"
+.SH NAME
+dump_jemalloc_pprof \- dump the current jemalloc allocation profile in pprof format
+
+.SH SYNOPSIS
+\fB#include <jemalloc_pprof.h>\fR
+
+\fBint dump_jemalloc_pprof(\fR\fIunsigned char **buf_out, size_t *n_out\fR\fB);\fR
+
+.SH DESCRIPTION
+The \fBdump_jemalloc_pprof()\fR function is intended to be called from C code to dump the current jemalloc allocation profile in pprof format. It allocates a buffer and stores a pointer to this buffer in \fI*buf_out\fR. The size of the buffer is stored in \fI*n_out\fR. The function returns \fIJP_SUCCESS\fR if the operation succeeds or \fIJP_FAILURE\fR if it fails. In the case of failure, an error code may be stored in \fIerrno\fR if meaningful.
+
+If \fIJP_FAILURE\fR is returned, the values pointed to by \fIbuf_out\fR and \fIn_out\fR are unspecified.
+
+This function requires jemalloc profiling to be enabled and active. For more information, see \fBjemalloc(3)\fR.
+
+.SH SAFETY
+This function is marked as unsafe and should not be called directly from Rust code. A corresponding Rust API should be used instead.
+
+.SH "RETURN VALUES"
+.TP
+\fBJP_SUCCESS\fR
+Indicates that the operation succeeded.
+.TP
+\fBJP_FAILURE\fR
+Indicates that the operation failed. The specific error code can be found in \fIerrno\fR.
+
+.SH "SEE ALSO"
+\fBjemalloc(3)\fR, \fBerrno(3)\fR
+
+.SH AUTHOR
+This library was written by the Polar Signals team. See
+https://polarsignals.com for more information.
