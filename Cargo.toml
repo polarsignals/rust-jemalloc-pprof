@@ -4,7 +4,7 @@ members = ["pure", "capi"]
 [package]
 name = "jemalloc_pprof"
 description = "Convert jemalloc heap profiles to pprof to understand memory usage, fix memory leaks, and fix OOM Kills."
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = true
 license = "Apache-2.0"
@@ -33,7 +33,7 @@ num = "0.4.0"
 errno = "0.3.8"
 
 [dependencies]
-pure = { path = "./pure" }
+pure = { path = "./pure", version = "0.2.0" }
 libc.workspace = true
 anyhow.workspace = true
 tikv-jemalloc-ctl.workspace = true
