@@ -33,7 +33,7 @@ num = "0.4.0"
 errno = "0.3.8"
 
 [dependencies]
-pure = { path = "./pure", version = "0.2.0" }
+pure = { path = "./pure", version = "0.2.0", package = "rust_jemalloc_pprof_internal" }
 libc.workspace = true
 anyhow.workspace = true
 tikv-jemalloc-ctl.workspace = true
