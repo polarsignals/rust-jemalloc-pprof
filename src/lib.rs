@@ -15,7 +15,7 @@
 
 #![doc = include_str!("../README.md")]
 
-pub use pure::{parse_jeheap, Mapping, MAPPINGS, StackProfile};
+pub use pure::{parse_jeheap, Mapping, StackProfile, StackProfileIter, WeightedStack, MAPPINGS};
 
 use std::ffi::CString;
 
