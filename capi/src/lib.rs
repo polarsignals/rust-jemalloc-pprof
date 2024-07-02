@@ -6,7 +6,7 @@ use std::ptr::null_mut;
 
 use errno::{set_errno, Errno};
 use libc::{c_char, c_int, c_void, size_t};
-use pure::parse_jeheap;
+use pure::{parse_jeheap, MAPPINGS};
 use tempfile::NamedTempFile;
 
 pub const JP_SUCCESS: c_int = 0;
@@ -62,7 +62,7 @@ fn dump_pprof_inner() -> Result<Vec<u8>, Error> {
     }
 
     let dump_reader = BufReader::new(f);
-    let profile = parse_jeheap(dump_reader)?;
+    let profile = parse_jeheap(dump_reader, MAPPINGS.as_deref())?;
     let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
     Ok(pprof)
 }

@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use once_cell::sync::Lazy;
-use pure::parse_jeheap;
+use pure::{parse_jeheap, MAPPINGS};
 use libc::size_t;
 
 use tempfile::NamedTempFile;
@@ -173,7 +173,7 @@ impl JemallocProfCtl {
     pub fn dump_pprof(&mut self) -> anyhow::Result<Vec<u8>> {
         let f = self.dump()?;
         let dump_reader = BufReader::new(f);
-        let profile = parse_jeheap(dump_reader)?;
+        let profile = parse_jeheap(dump_reader, MAPPINGS.as_deref())?;
         let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
         Ok(pprof)
     }

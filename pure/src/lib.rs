@@ -1,3 +1,5 @@
+pub use crate::linux::{Mapping, MAPPINGS};
+
 use anyhow::bail;
 use cast::{CastFrom, TryCastFrom};
 use flate2::write::GzEncoder;
@@ -6,8 +8,6 @@ use prost::Message;
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::linux::{Mapping, MAPPINGS};
 
 mod cast;
 mod linux;
@@ -244,7 +244,7 @@ impl StackProfile {
 }
 
 /// Parse a jemalloc profile file, producing a vector of stack traces along with their weights.
-pub fn parse_jeheap<R: BufRead>(r: R) -> anyhow::Result<StackProfile> {
+pub fn parse_jeheap<R: BufRead>(r: R, mappings: Option<&[Mapping]>) -> anyhow::Result<StackProfile> {
     let mut cur_stack = None;
     let mut profile = StackProfile::default();
     let mut lines = r.lines();
@@ -315,7 +315,7 @@ pub fn parse_jeheap<R: BufRead>(r: R) -> anyhow::Result<StackProfile> {
         bail!("Stack without corresponding weight!");
     }
 
-    if let Some(mappings) = MAPPINGS.as_ref() {
+    if let Some(mappings) = mappings {
         for mapping in mappings {
             profile.push_mapping(mapping.clone());
         }
