@@ -1,6 +1,6 @@
 [package]
 name = "capi"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2021"
 
 [lib]
@@ -11,5 +11,5 @@ name = "jemalloc_pprof"
 libc.workspace = true
 anyhow.workspace = true
 tempfile.workspace = true
-pure = { path = "../pure", version = "0.2.0", package = "rust_jemalloc_pprof_internal" }
+pure = { path = "../pure", version = "0.3.0", package = "rust_jemalloc_pprof_internal" }
 errno.workspace = true
