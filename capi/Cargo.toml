@@ -11,5 +11,5 @@ name = "jemalloc_pprof"
 libc.workspace = true
 anyhow.workspace = true
 tempfile.workspace = true
-pure.path = "../pure"
+pure = { path = "../pure", version = "0.2.0", package = "rust_jemalloc_pprof_internal" }
 errno.workspace = true
