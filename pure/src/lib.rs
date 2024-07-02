@@ -244,7 +244,10 @@ impl StackProfile {
 }
 
 /// Parse a jemalloc profile file, producing a vector of stack traces along with their weights.
-pub fn parse_jeheap<R: BufRead>(r: R, mappings: Option<&[Mapping]>) -> anyhow::Result<StackProfile> {
+pub fn parse_jeheap<R: BufRead>(
+    r: R,
+    mappings: Option<&[Mapping]>,
+) -> anyhow::Result<StackProfile> {
     let mut cur_stack = None;
     let mut profile = StackProfile::default();
     let mut lines = r.lines();

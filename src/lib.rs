@@ -24,8 +24,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
 use std::time::Instant;
 
-use once_cell::sync::Lazy;
 use libc::size_t;
+use once_cell::sync::Lazy;
 
 use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
