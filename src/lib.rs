@@ -25,12 +25,12 @@ use std::time::Instant;
 use libc::size_t;
 use once_cell::sync::Lazy;
 
-use pure::{parse_jeheap, MAPPINGS};
+use pure::MAPPINGS;
 use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;
 
-use util::ProfStartTime;
+use util::{parse_jeheap, ProfStartTime};
 
 /// Activate jemalloc profiling.
 pub async fn activate_jemalloc_profiling() {

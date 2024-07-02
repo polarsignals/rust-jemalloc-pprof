@@ -31,10 +31,11 @@ tokio = { version = "1.32.0", features = ["time", "sync"] }
 paste = "1.0.11"
 num = "0.4.0"
 errno = "0.3.8"
+util = { path = "./util", version = "0.3.0", package = "pprof_util" }
 
 [dependencies]
 pure = { path = "./pure", version = "0.3.0", package = "rust_jemalloc_pprof_internal" }
-util = { path = "./util", version = "0.3.0", package = "pprof_util" }
+util.workspace = true
 libc.workspace = true
 anyhow.workspace = true
 tikv-jemalloc-ctl.workspace = true
