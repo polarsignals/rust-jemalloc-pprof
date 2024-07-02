@@ -154,41 +154,6 @@ cast_from!(i32, i128);
 cast_from!(i64, i64);
 cast_from!(i64, i128);
 
-/// A trait for reinterpreting casts.
-///
-/// `ReinterpretCast` is like `as`, but it allows the caller to be specific about their
-/// intentions to reinterpreting the bytes from one type to another. For example, if we
-/// have some `u32` that we want to use as the return value of a postgres function, and
-/// we don't mind converting large unsigned numbers to negative signed numbers, then
-/// we would use `ReinterpretCast<i32>`.
-///
-/// `ReinterpretCast` should be preferred to the `as` operator, since it explicitly
-/// conveys the intention to reinterpret the type.
-pub trait ReinterpretCast<T> {
-    /// Performs the cast.
-    fn reinterpret_cast(from: T) -> Self;
-}
-
-macro_rules! reinterpret_cast {
-    ($from:ty, $to:ty) => {
-        impl ReinterpretCast<$from> for $to {
-            #[allow(clippy::as_conversions)]
-            fn reinterpret_cast(from: $from) -> $to {
-                from as $to
-            }
-        }
-    };
-}
-
-reinterpret_cast!(u8, i8);
-reinterpret_cast!(i8, u8);
-reinterpret_cast!(u16, i16);
-reinterpret_cast!(i16, u16);
-reinterpret_cast!(u32, i32);
-reinterpret_cast!(i32, u32);
-reinterpret_cast!(u64, i64);
-reinterpret_cast!(i64, u64);
-
 /// A trait for attempted casts.
 ///
 /// `TryCast` is like `as`, but returns `None` if
