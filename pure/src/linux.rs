@@ -65,8 +65,7 @@ pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
         mappings
     }
 
-    // SAFETY: We are on Linux, and this is the only place in the program this
-    // function is called.
+    // SAFETY: We are on Linux
     match unsafe { crate::linux::collect_shared_objects() } {
         Ok(objects) => Some(build_mappings(&objects)),
         Err(err) => {
@@ -135,9 +134,7 @@ pub struct LoadedSegment {
 /// bugs (and that the documentation is correct), the only known safety
 /// requirements are:
 ///
-/// (1) It must not be called multiple times concurrently, as `dl_iterate_phdr`
-///     is not documented as being thread-safe.
-/// (2) The running binary must be in ELF format and running on Linux.
+/// (1) The running binary must be in ELF format and running on Linux.
 pub unsafe fn collect_shared_objects() -> Result<Vec<SharedObject>, anyhow::Error> {
     let mut state = CallbackState {
         result: Ok(Vec::new()),
