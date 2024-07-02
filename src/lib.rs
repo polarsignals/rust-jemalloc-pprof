@@ -15,6 +15,8 @@
 
 #![doc = include_str!("../README.md")]
 
+pub use pure::{parse_jeheap, Mapping, MAPPINGS};
+
 use std::ffi::CString;
 
 use std::io::BufReader;
@@ -23,7 +25,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use once_cell::sync::Lazy;
-use pure::{parse_jeheap, MAPPINGS};
 use libc::size_t;
 
 use tempfile::NamedTempFile;
