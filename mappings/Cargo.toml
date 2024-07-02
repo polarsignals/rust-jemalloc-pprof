@@ -1,8 +1,8 @@
 [package]
-name = "rust_jemalloc_pprof_internal"
-version = "0.3.0"
+name = "mappings"
+version = "0.4.0"
 edition = "2021"
-description = "Used internally by rust_jemalloc_pprof"
+description = "Get the mappings of a process (currently only on Linux)"
 publish = true
 license = "Apache-2.0"
 
@@ -13,6 +13,4 @@ anyhow.workspace = true
 libc.workspace = true
 once_cell.workspace = true
 tracing.workspace = true
-# num.workspace = true
-# paste.workspace = true
 util.workspace = true

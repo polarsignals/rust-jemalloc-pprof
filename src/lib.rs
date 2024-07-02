@@ -25,7 +25,7 @@ use std::time::Instant;
 use libc::size_t;
 use once_cell::sync::Lazy;
 
-use pure::MAPPINGS;
+use mappings::MAPPINGS;
 use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;

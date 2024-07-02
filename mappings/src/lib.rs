@@ -55,7 +55,7 @@ pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
     }
 
     // SAFETY: We are on Linux
-    match unsafe { crate::linux::collect_shared_objects() } {
+    match unsafe { collect_shared_objects() } {
         Ok(objects) => Some(build_mappings(&objects)),
         Err(err) => {
             error!("build ID fetching failed: {err}");
