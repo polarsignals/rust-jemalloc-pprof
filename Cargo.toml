@@ -1,5 +1,5 @@
 [workspace]
-members = ["pure", "capi"]
+members = ["pure", "capi", "util"]
 
 [package]
 name = "jemalloc_pprof"
@@ -34,6 +34,7 @@ errno = "0.3.8"
 
 [dependencies]
 pure = { path = "./pure", version = "0.3.0", package = "rust_jemalloc_pprof_internal" }
+util = { path = "./util", version = "0.3.0", package = "pprof_util" }
 libc.workspace = true
 anyhow.workspace = true
 tikv-jemalloc-ctl.workspace = true

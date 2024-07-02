@@ -15,8 +15,6 @@
 
 #![doc = include_str!("../README.md")]
 
-pub use pure::{parse_jeheap, Mapping, StackProfile, StackProfileIter, WeightedStack, MAPPINGS};
-
 use std::ffi::CString;
 
 use std::io::BufReader;
@@ -27,16 +25,12 @@ use std::time::Instant;
 use libc::size_t;
 use once_cell::sync::Lazy;
 
+use pure::{parse_jeheap, MAPPINGS};
 use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;
 
-/// Start times of the profiler.
-#[derive(Copy, Clone, Debug)]
-pub enum ProfStartTime {
-    Instant(Instant),
-    TimeImmemorial,
-}
+use util::ProfStartTime;
 
 /// Activate jemalloc profiling.
 pub async fn activate_jemalloc_profiling() {
