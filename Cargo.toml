@@ -32,7 +32,7 @@ paste = "1.0.11"
 num = "0.4.0"
 errno = "0.3.8"
 util = { path = "./util", version = "0.4.0", package = "pprof_util" }
-mappings = { path = "./mappings", version = "0.4.0" }
+mappings = { path = "./mappings", version = "0.5.0" }
 
 [dependencies]
 util.workspace = true

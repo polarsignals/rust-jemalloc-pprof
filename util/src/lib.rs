@@ -9,8 +9,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::bail;
 use flate2::write::GzEncoder;
-use prost::Message;
 use flate2::Compression;
+use prost::Message;
 
 pub use cast::CastFrom;
 pub use cast::TryCastFrom;

@@ -6,8 +6,8 @@ use std::ptr::null_mut;
 
 use errno::{set_errno, Errno};
 use libc::{c_char, c_int, c_void, size_t};
-use util::{parse_jeheap, MAPPINGS};
 use tempfile::NamedTempFile;
+use util::{parse_jeheap, MAPPINGS};
 
 pub const JP_SUCCESS: c_int = 0;
 pub const JP_FAILURE: c_int = -1;
