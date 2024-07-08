@@ -1,10 +1,12 @@
 [package]
 name = "mappings"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 description = "Get the mappings of a process (currently only on Linux)"
 publish = true
 license = "Apache-2.0"
+repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
+homepage = "https://crates.io/crates/mappings"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
