@@ -117,7 +117,7 @@ functionality is exposed via the `capi` (C API) package.
 The following prerequisites are necessary to build the C API package:
 
 - Working Rust and C toolchains. The former can be installed by
-  following the instructions at https://rustup.rs . The latter can be
+  following the instructions at <https://rustup.rs> . The latter can be
   installed via the distribution's package manager. For example, on
   Ubuntu, run `sudo apt install build-essential`.
 - `jemalloc` and its development headers. For example, on Ubuntu, run

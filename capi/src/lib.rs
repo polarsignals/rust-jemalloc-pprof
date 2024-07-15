@@ -28,18 +28,12 @@ extern "C" {
 enum Error {
     Io(std::io::Error),
     Mallctl(c_int),
-    Anyhow(anyhow::Error),
+    ParseProfile(),
 }
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
         Self::Io(e)
-    }
-}
-
-impl From<anyhow::Error> for Error {
-    fn from(e: anyhow::Error) -> Self {
-        Self::Anyhow(e)
     }
 }
 
@@ -63,7 +57,8 @@ fn dump_pprof_inner() -> Result<Vec<u8>, Error> {
     }
 
     let dump_reader = BufReader::new(f);
-    let profile = parse_jeheap(dump_reader, MAPPINGS.as_deref())?;
+    let profile =
+        parse_jeheap(dump_reader, MAPPINGS.as_deref()).map_err(|_| Error::ParseProfile())?;
     let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
     Ok(pprof)
 }
@@ -79,7 +74,9 @@ fn dump_pprof_inner() -> Result<Vec<u8>, Error> {
 /// If `JP_FAILURE` is returned, the values pointed to by `buf_out` and `n_out`
 /// are unspecified.
 ///
-/// SAFETY: You probably don't want to call this from Rust.
+/// # Safety
+///
+/// You probably don't want to call this from Rust.
 /// Use the Rust API instead.
 #[no_mangle]
 pub unsafe extern "C" fn dump_jemalloc_pprof(buf_out: *mut *mut u8, n_out: *mut size_t) -> c_int {
@@ -98,6 +95,13 @@ pub unsafe extern "C" fn dump_jemalloc_pprof(buf_out: *mut *mut u8, n_out: *mut 
             return JP_FAILURE;
         }
     };
+
+    // Disable clippy warning.
+    // usize is defined to be the same as uintptr_t (AKA have the same representation as a pointer),
+    // which is different from size_t, which is the maximum size of an array.
+    // This is not usually an issue, except on some platforms like CHERI which store extra information in the pointer.
+    // On those platforms, usize will be 128 bits, while size_t is 64 bit.
+    #[allow(clippy::useless_conversion)]
     let len: size_t = buf.len().try_into().expect("absurd length");
     let p = if len > 0 {
         // leak is ok, consumer is responsible for freeing

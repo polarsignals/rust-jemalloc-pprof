@@ -294,12 +294,12 @@ pub fn parse_jeheap<R: BufRead>(
     // number is the inverse probability of a byte being sampled.
     let sampling_rate: f64 = str::parse(first_line.trim_start_matches("heap_v2/"))?;
 
-    while let Some(line) = lines.next() {
+    for line in &mut lines {
         let line = line?;
         let line = line.trim();
 
         let words: Vec<_> = line.split_ascii_whitespace().collect();
-        if words.len() > 0 && words[0] == "@" {
+        if !words.is_empty() && words[0] == "@" {
             if cur_stack.is_some() {
                 bail!("Stack without corresponding weight!")
             }
