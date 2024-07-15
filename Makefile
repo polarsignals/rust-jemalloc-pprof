@@ -12,7 +12,7 @@ lint:
 
 .PHONY: doc
 doc:
-	RUSTDOCFLAGS="--cfg docsrs -D warnings" cargo +nightly doc --all-features --no-deps
+	RUSTDOCFLAGS="--cfg docsrs -D warnings" cargo doc --all-features --no-deps
 
 .PHONY: test
 test: fmt lint doc
