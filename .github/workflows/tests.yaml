@@ -1,0 +1,16 @@
+name: test suite
+on: [push, pull_request]
+
+jobs:
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: |
+          sudo apt update
+          sudo apt install -y build-essential jemalloc-dev
+      - run: |
+          make test
+          make capi
