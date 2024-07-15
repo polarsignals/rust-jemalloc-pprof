@@ -25,14 +25,14 @@ When adding `tikv-jemallocator` as a dependency, make sure to enable the `profil
 ```toml
 [dependencies]
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = { version = "0.5.4", features = ["profiling", "unprefixed_malloc_on_supported_platforms"] }
+tikv-jemallocator = { version = "0.6.0", features = ["profiling", "unprefixed_malloc_on_supported_platforms"] }
 ```
 
 > Note: We also recommend enabling the `unprefixed_malloc_on_supported_platforms` feature, not strictly necessary, but will influence the rest of the usage.
 
 Then configure the global allocator and configure it with profiling enabled.
 
-```rust
+```rust,no_run
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -48,7 +48,7 @@ pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0
 
 We recommend serving the profiling data on an HTTP server such as [axum](https://github.com/tokio-rs/axum), that could look like this, and we'll intentionally include a 4mb allocation to trigger sampling.
 
-```rust
+```rust,no_run
 #[tokio::main]
 async fn main() {
     let mut v = vec![];
@@ -88,7 +88,7 @@ fn require_profiling_activated(prof_ctl: &jemalloc_pprof::JemallocProfCtl) -> Re
 
 Then running the application, we can capture a profile and view it the pprof toolchain.
 
-```console
+```shell
 curl localhost:3000/debug/pprof/heap > heap.pb.gz
 pprof -http=:8080 heap.pb.gz
 ```
