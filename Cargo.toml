@@ -9,28 +9,33 @@ edition = "2021"
 publish = true
 license = "Apache-2.0"
 authors = [
-    "Frederic Branczyk <frederic.branczyk@polarsignals.com>",
-    "Brennan Vincent <brennan.vincent@polarsignals.com>",
+  "Frederic Branczyk <frederic.branczyk@polarsignals.com>",
+  "Brennan Vincent <brennan.vincent@polarsignals.com>",
 ]
 repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
 keywords = ["jemalloc", "pprof", "memory", "profiling", "observability"]
-categories = ["development-tools", "development-tools::profiling", "development-tools::debugging", "memory-management"]
+categories = [
+  "development-tools",
+  "development-tools::profiling",
+  "development-tools::debugging",
+  "memory-management",
+]
 documentation = "https://docs.rs/jemalloc_pprof/latest/jemalloc_pprof/"
 homepage = "https://crates.io/crates/jemalloc_pprof"
 
 [workspace.dependencies]
-anyhow = "1.0.66"
-flate2 = "1.0.24"
-libc = "0.2.138"
-once_cell = "1.16.0"
-prost = { version = "0.13.1", features = ["no-recursion-limit"] }
-tempfile = "3.2.0"
+anyhow = "1"
+flate2 = "1.0"
+libc = "0.2"
+once_cell = "1.19"
+prost = { version = "0.13", features = ["no-recursion-limit"] }
+tempfile = "3.11"
 tikv-jemalloc-ctl = { version = "0.6", features = ["use_std"] }
-tracing = "0.1.37"
-tokio = { version = "1.32.0", features = ["time", "sync"] }
-paste = "1.0.11"
-num = "0.4.0"
-errno = "0.3.8"
+tracing = "0.1"
+tokio = { version = "1", features = ["time", "sync"] }
+paste = "1.0"
+num = "0.4"
+errno = "0.3"
 util = { path = "./util", version = "0.4", package = "pprof_util" }
 mappings = { path = "./mappings", version = "0.5" }
 
