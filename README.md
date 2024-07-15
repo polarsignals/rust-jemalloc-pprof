@@ -121,7 +121,7 @@ The following prerequisites are necessary to build the C API package:
   installed via the distribution's package manager. For example, on
   Ubuntu, run `sudo apt install build-essential`.
 - `jemalloc` and its development headers. For example, on Ubuntu, run
-  `sudo apt install jemalloc-dev`.
+  `sudo apt install libjemalloc-dev`.
 
 Once the prerequisites are installed, the library can be built by
 running `cargo build -p capi --release`. There are three files of

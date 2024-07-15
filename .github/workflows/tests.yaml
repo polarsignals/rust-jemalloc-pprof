@@ -10,7 +10,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: |
           sudo apt update
-          sudo apt install -y build-essential jemalloc-dev
+          sudo apt install -y build-essential libjemalloc-dev
       - run: |
           make test
           make capi
