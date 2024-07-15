@@ -88,7 +88,7 @@ fn require_profiling_activated(prof_ctl: &jemalloc_pprof::JemallocProfCtl) -> Re
 
 Then running the application, we can capture a profile and view it the pprof toolchain.
 
-```
+```console
 curl localhost:3000/debug/pprof/heap > heap.pb.gz
 pprof -http=:8080 heap.pb.gz
 ```
@@ -116,21 +116,21 @@ functionality is exposed via the `capi` (C API) package.
 
 The following prerequisites are necessary to build the C API package:
 
-* Working Rust and C toolchains. The former can be installed by
+- Working Rust and C toolchains. The former can be installed by
   following the instructions at https://rustup.rs . The latter can be
   installed via the distribution's package manager. For example, on
   Ubuntu, run `sudo apt install build-essential`.
-* `jemalloc` and its development headers. For example, on Ubuntu, run
+- `jemalloc` and its development headers. For example, on Ubuntu, run
   `sudo apt install jemalloc-dev`.
 
 Once the prerequisites are installed, the library can be built by
 running `cargo build -p capi --release`. There are three files of
 interest:
 
-* The library itself, produced at
+- The library itself, produced at
   `target/release/libjemalloc_pprof.so`
-* A header file, at `capi/include/jemalloc_pprof.h`
-* A manual page, at `capi/man/jemalloc_pprof.3`.
+- A header file, at `capi/include/jemalloc_pprof.h`
+- A manual page, at `capi/man/jemalloc_pprof.3`.
 
 The procedure for installing and using these files depends on your
 distribution and build system.
@@ -147,7 +147,7 @@ Once that is done, profiling can be enabled either by setting the
 `MALLOC_CONF` variable or by defining a symbol called `malloc_conf` in
 the binary. For example:
 
-``` shell
+```shell
 export MALLOC_CONF="prof:true,prof_active:true,lg_prof_sample:19"
 ```
 
@@ -160,7 +160,7 @@ enabled, a profile may be dumped in pprof format via the
 This program allocates between 1 and 10 MiB every 100 milliseconds,
 and dumps a profile to the file `my_profile` every 2 seconds.
 
-``` c
+```c
 #include <assert.h>
 #include <errno.h>
 #include <unistd.h>
@@ -283,11 +283,11 @@ repeatedly_dump(void *ignored)
                         fprintf(stderr, "errno: %d\n", errno);
                         continue;
                 }
-                if (buf) {                        
+                if (buf) {
                         FILE *file = fopen("my_profile", "w");
                         assert(file);
 
-                        fwrite(buf, sizeof(char), len, file);    
+                        fwrite(buf, sizeof(char), len, file);
                         fclose(file);
                         printf("dumped pprof of size %lu\n", len);
                         free(buf);
