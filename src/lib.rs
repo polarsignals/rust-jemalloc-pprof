@@ -18,7 +18,6 @@
 use std::ffi::CString;
 
 use std::io::BufReader;
-use std::os::unix::ffi::OsStrExt;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -155,7 +154,7 @@ impl JemallocProfCtl {
     /// Dump a profile into a temporary file and return it.
     pub fn dump(&mut self) -> anyhow::Result<std::fs::File> {
         let f = NamedTempFile::new()?;
-        let path = CString::new(f.path().as_os_str().as_bytes().to_vec()).unwrap();
+        let path = CString::new(f.path().as_os_str().as_encoded_bytes()).unwrap();
 
         // SAFETY: "prof.dump" is documented as being writable and taking a C string as input:
         // http://jemalloc.net/jemalloc.3.html#prof.dump
