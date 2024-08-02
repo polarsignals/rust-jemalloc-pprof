@@ -4,7 +4,7 @@ members = ["mappings", "capi", "util"]
 [package]
 name = "jemalloc_pprof"
 description = "Convert jemalloc heap profiles to pprof to understand memory usage, fix memory leaks, and fix OOM Kills."
-version = "0.4.2"
+version = "0.5.0"
 edition = "2021"
 publish = true
 license = "Apache-2.0"
@@ -25,7 +25,7 @@ libc = "0.2.138"
 once_cell = "1.16.0"
 prost = { version = "0.11.3", features = ["no-recursion-limit"] }
 tempfile = "3.2.0"
-tikv-jemalloc-ctl = { version = "0.5.0", features = ["use_std"] }
+tikv-jemalloc-ctl = { version = "0.6.0", features = ["use_std"] }
 tracing = "0.1.37"
 tokio = { version = "1.32.0", features = ["time", "sync"] }
 paste = "1.0.11"

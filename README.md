@@ -25,7 +25,7 @@ When adding `tikv-jemallocator` as a dependency, make sure to enable the `profil
 ```toml
 [dependencies]
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = { version = "0.5.4", features = ["profiling", "unprefixed_malloc_on_supported_platforms"] }
+tikv-jemallocator = { version = "0.6.0", features = ["profiling", "unprefixed_malloc_on_supported_platforms"] }
 ```
 
 > Note: We also recommend enabling the `unprefixed_malloc_on_supported_platforms` feature, not strictly necessary, but will influence the rest of the usage.
