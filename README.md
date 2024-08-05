@@ -124,7 +124,7 @@ The following prerequisites are necessary to build the C API package:
   `sudo apt install libjemalloc-dev`.
 
 Once the prerequisites are installed, the library can be built by
-running `cargo build -p capi --release`. There are three files of
+running `make capi`. There are three files of
 interest:
 
 - The library itself, produced at
