@@ -148,7 +148,7 @@ mod enabled {
         for ph in program_headers {
             if ph.p_type == PT_LOAD {
                 loaded_segments.push(LoadedSegment {
-                    file_offset: ph.p_offset,
+                    file_offset: u64::cast_from(ph.p_offset),
                     memory_offset: usize::cast_from(ph.p_vaddr),
                     memory_size: usize::cast_from(ph.p_memsz),
                 });
