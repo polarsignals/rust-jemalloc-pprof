@@ -67,13 +67,8 @@ pub async fn deactivate_jemalloc_profiling() {
 }
 
 /// Per-process singleton for controlling jemalloc profiling.
-pub static PROF_CTL: Lazy<Option<Arc<Mutex<JemallocProfCtl>>>> = Lazy::new(|| {
-    if let Some(ctl) = JemallocProfCtl::get() {
-        Some(Arc::new(Mutex::new(ctl)))
-    } else {
-        None
-    }
-});
+pub static PROF_CTL: Lazy<Option<Arc<Mutex<JemallocProfCtl>>>> =
+    Lazy::new(|| JemallocProfCtl::get().map(|ctl| Arc::new(Mutex::new(ctl))));
 
 /// Metadata about a jemalloc heap profiler.
 #[derive(Copy, Clone, Debug)]
