@@ -1,5 +1,5 @@
 [workspace]
-members = ["mappings", "capi", "util"]
+members = ["mappings", "capi", "util", "example"]
 
 [package]
 name = "jemalloc_pprof"
