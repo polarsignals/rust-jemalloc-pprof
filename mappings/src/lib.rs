@@ -29,6 +29,8 @@ use util::{BuildId, Mapping};
 mod enabled {
     use std::ffi::{CStr, OsStr};
     use std::os::unix::ffi::OsStrExt;
+    use std::path::PathBuf;
+    use std::str::FromStr;
 
     use anyhow::Context;
     use libc::{
@@ -112,9 +114,7 @@ mod enabled {
             // From `man dl_iterate_phdr`:
             // "The first object visited by callback is the main program.  For the main
             // program, the dlpi_name field will be an empty string."
-            match std::env::current_exe()
-                .context("failed to read the name of the current executable")
-            {
+            match current_exe().context("failed to read the name of the current executable") {
                 Ok(pb) => pb,
                 Err(e) => {
                     // Profiles will be of dubious usefulness
@@ -269,6 +269,38 @@ mod enabled {
 
         assert!(!ptr.is_null());
         assert!(address % align == 0, "unaligned pointer");
+    }
+
+    fn current_exe_from_dladdr() -> Result<PathBuf, anyhow::Error> {
+        let progname = unsafe {
+            let mut dlinfo = std::mem::MaybeUninit::uninit();
+
+            // This should set the filepath of the current executable
+            // because it must contain the function pointer of itself.
+            let ret = libc::dladdr(
+                current_exe_from_dladdr as *const libc::c_void,
+                dlinfo.as_mut_ptr(),
+            );
+            if ret == 0 {
+                anyhow::bail!("dladdr failed");
+            }
+            CStr::from_ptr(dlinfo.assume_init().dli_fname).to_str()?
+        };
+
+        Ok(PathBuf::from_str(progname)?)
+    }
+
+    /// Get the name of the current executable by dladdr and fall back to std::env::current_exe
+    /// if it fails. Try dladdr first because it returns the actual exe even when it's invoked
+    /// by ld.so.
+    fn current_exe() -> Result<PathBuf, anyhow::Error> {
+        match current_exe_from_dladdr() {
+            Ok(path) => Ok(path),
+            Err(e) => {
+                // when failed to get current exe from dladdr, fall back to the conventional way
+                std::env::current_exe().context(e)
+            }
+        }
     }
 }
 
