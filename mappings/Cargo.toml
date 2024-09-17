@@ -1,6 +1,6 @@
 [package]
 name = "mappings"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 description = "Get the mappings of a process (currently only on Linux)"
 publish = true
