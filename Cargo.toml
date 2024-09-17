@@ -36,8 +36,8 @@ tokio = { version = "1", features = ["time", "sync"] }
 paste = "1.0"
 num = "0.4"
 errno = "0.3"
-util = { path = "./util", version = "0.5", package = "pprof_util" }
-mappings = { path = "./mappings", version = "0.5" }
+util = { path = "./util", version = "0.6", package = "pprof_util" }
+mappings = { path = "./mappings", version = "0.6" }
 
 [dependencies]
 util.workspace = true
