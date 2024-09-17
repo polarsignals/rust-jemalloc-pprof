@@ -4,7 +4,7 @@ members = ["mappings", "capi", "util", "example"]
 [package]
 name = "jemalloc_pprof"
 description = "Convert jemalloc heap profiles to pprof to understand memory usage, fix memory leaks, and fix OOM Kills."
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 publish = true
 license = "Apache-2.0"
