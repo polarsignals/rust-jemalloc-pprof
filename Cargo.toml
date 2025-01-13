@@ -52,7 +52,7 @@ tokio.workspace = true
 
 [dev-dependencies]
 tikv-jemallocator = "0.6"
-axum = "0.7"
+axum = "0.8"
 # re-import tokio to enable all its features. This is required to
 # successfully compile the test snipptes that are part of the documentation
 tokio = { version = "1", features = ["full"] }
