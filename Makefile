@@ -6,9 +6,11 @@ capi:
 fmt:
 	cargo fmt --all -- --check
 
+# Run Clippy with default and all features, to ensure both variants compile.
 .PHONY: lint
 lint:
 	cargo clippy --workspace -- -D warnings
+	cargo clippy --workspace --all-features -- -D warnings
 
 .PHONY: doc
 doc:
@@ -16,7 +18,7 @@ doc:
 
 .PHONY: test
 test: fmt lint doc
-	cargo test --workspace
+	cargo test --workspace --all-features
 
 .PHONY: clean
 clean:

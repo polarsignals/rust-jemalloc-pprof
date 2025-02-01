@@ -93,7 +93,14 @@ curl localhost:3000/debug/pprof/heap > heap.pb.gz
 pprof -http=:8080 heap.pb.gz
 ```
 
-> Note: The profiling data is not symbolized, so either `addr2line` or `llvm-addr2line` needs to be available in the path and pprof needs to be able to discover the respective debuginfos.
+> Note: if symbolization is not enabled, either `addr2line` or `llvm-addr2line` needs to be available in the path and pprof needs to be able to discover the respective debuginfos.
+
+To generate symbolized profiles, enable the `symbolize` crate feature:
+
+```toml
+[dependencies]
+jemalloc_pprof = { version = "0.6", features = ["symbolize"] }
+```
 
 ### Writeable temporary directory
 

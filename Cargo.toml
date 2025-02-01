@@ -38,6 +38,7 @@ num = "0.4"
 errno = "0.3"
 util = { path = "./util", version = "0.6", package = "pprof_util" }
 mappings = { path = "./mappings", version = "0.6" }
+backtrace = "0.3"
 
 [dependencies]
 util.workspace = true
@@ -49,6 +50,9 @@ once_cell.workspace = true
 tracing.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
+
+[features]
+symbolize = ["util/symbolize"]
 
 [dev-dependencies]
 tikv-jemallocator = "0.6"
