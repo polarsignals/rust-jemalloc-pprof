@@ -168,6 +168,8 @@ impl StackProfile {
         }
 
         let mut location_ids = BTreeMap::new();
+        #[cfg(feature = "symbolize")]
+        let mut function_ids = BTreeMap::new();
         for (stack, anno) in self.iter() {
             let mut sample = proto::Sample::default();
 
@@ -193,15 +195,65 @@ impl StackProfile {
                     // pprof_types.proto says the location id may be the address, but Polar Signals
                     // insists that location ids are sequential, starting with 1.
                     let id = u64::cast_from(profile.location.len()) + 1;
-                    let mapping_id = profile
+
+                    #[allow(unused_mut)] // for feature = "symbolize"
+                    let mut mapping = profile
                         .mapping
-                        .iter()
-                        .find(|m| m.memory_start <= addr && m.memory_limit > addr)
-                        .map_or(0, |m| m.id);
+                        .iter_mut()
+                        .find(|m| m.memory_start <= addr && m.memory_limit > addr);
+
+                    // If online symbolization is enabled, resolve the function and line.
+                    #[allow(unused_mut)]
+                    let mut line = Vec::new();
+                    #[cfg(feature = "symbolize")]
+                    backtrace::resolve(addr as *mut std::ffi::c_void, |symbol| {
+                        let Some(symbol_name) = symbol.name() else {
+                            return;
+                        };
+                        let function_name = format!("{symbol_name:#}");
+                        let lineno = symbol.lineno().unwrap_or(0) as i64;
+
+                        let function_id = *function_ids.entry(function_name).or_insert_with_key(
+                            |function_name| {
+                                let function_id = profile.function.len() as u64 + 1;
+                                let system_name = String::from_utf8_lossy(symbol_name.as_bytes());
+                                let filename = symbol
+                                    .filename()
+                                    .map(|path| path.to_string_lossy())
+                                    .unwrap_or(std::borrow::Cow::Borrowed(""));
+
+                                if let Some(ref mut mapping) = mapping {
+                                    mapping.has_functions = true;
+                                    mapping.has_filenames |= !filename.is_empty();
+                                    mapping.has_line_numbers |= lineno > 0;
+                                }
+
+                                profile.function.push(proto::Function {
+                                    id: function_id,
+                                    name: strings.insert(function_name),
+                                    system_name: strings.insert(&system_name),
+                                    filename: strings.insert(&filename),
+                                    ..Default::default()
+                                });
+                                function_id
+                            },
+                        );
+
+                        line.push(proto::Line {
+                            function_id,
+                            line: lineno,
+                        });
+
+                        if let Some(ref mut mapping) = mapping {
+                            mapping.has_inline_frames |= line.len() > 1;
+                        }
+                    });
+
                     profile.location.push(proto::Location {
                         id,
-                        mapping_id,
+                        mapping_id: mapping.map_or(0, |m| m.id),
                         address: addr,
+                        line,
                         ..Default::default()
                     });
                     id

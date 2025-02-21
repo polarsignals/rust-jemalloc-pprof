@@ -16,3 +16,7 @@ prost.workspace = true
 anyhow.workspace = true
 num.workspace = true
 paste.workspace = true
+backtrace = { workspace = true, optional = true }
+
+[features]
+symbolize = ["dep:backtrace"]
