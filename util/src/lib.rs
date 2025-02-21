@@ -243,6 +243,10 @@ impl StackProfile {
                             function_id,
                             line: lineno,
                         });
+
+                        if let Some(ref mut mapping) = mapping {
+                            mapping.has_inline_frames |= line.len() > 1;
+                        }
                     });
 
                     profile.location.push(proto::Location {
