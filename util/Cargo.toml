@@ -17,6 +17,8 @@ anyhow.workspace = true
 num.workspace = true
 paste.workspace = true
 backtrace = { workspace = true, optional = true }
+inferno = { workspace = true, optional = true }
 
 [features]
+flamegraph = ["symbolize", "dep:inferno"]
 symbolize = ["dep:backtrace"]

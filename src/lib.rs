@@ -29,6 +29,8 @@ use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;
 
+#[cfg(feature = "flamegraph")]
+pub use util::FlamegraphOptions;
 use util::{parse_jeheap, ProfStartTime};
 
 /// Activate jemalloc profiling.
@@ -165,5 +167,26 @@ impl JemallocProfCtl {
         let profile = parse_jeheap(dump_reader, MAPPINGS.as_deref())?;
         let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
         Ok(pprof)
+    }
+
+    /// Dump a profile flamegraph in SVG format.
+    #[cfg(feature = "flamegraph")]
+    pub fn dump_flamegraph(&mut self) -> anyhow::Result<Vec<u8>> {
+        let mut opts = FlamegraphOptions::default();
+        opts.title = "inuse_space".to_string();
+        opts.count_name = "bytes".to_string();
+        self.dump_flamegraph_with_options(&mut opts)
+    }
+
+    /// Dump a profile flamegraph in SVG format with the given options.
+    #[cfg(feature = "flamegraph")]
+    pub fn dump_flamegraph_with_options(
+        &mut self,
+        opts: &mut FlamegraphOptions,
+    ) -> anyhow::Result<Vec<u8>> {
+        let f = self.dump()?;
+        let dump_reader = BufReader::new(f);
+        let profile = parse_jeheap(dump_reader, MAPPINGS.as_deref())?;
+        profile.to_flamegraph(opts)
     }
 }
