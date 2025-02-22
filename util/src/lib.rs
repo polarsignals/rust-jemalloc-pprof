@@ -15,6 +15,9 @@ use prost::Message;
 pub use cast::CastFrom;
 pub use cast::TryCastFrom;
 
+#[cfg(feature = "flamegraph")]
+pub use inferno::flamegraph::Options as FlamegraphOptions;
+
 /// Start times of the profiler.
 #[derive(Copy, Clone, Debug)]
 pub enum ProfStartTime {
@@ -51,7 +54,7 @@ impl StringTable {
 }
 
 #[path = "perftools.profiles.rs"]
-mod pprof_types;
+mod proto;
 
 /// A single sample in the profile. The stack is a list of addresses.
 #[derive(Clone, Debug)]
@@ -104,8 +107,21 @@ impl StackProfile {
         period_type: (&str, &str),
         anno_key: Option<String>,
     ) -> Vec<u8> {
-        use crate::pprof_types as proto;
+        let profile = self.to_pprof_proto(sample_type, period_type, anno_key);
+        let encoded = profile.encode_to_vec();
 
+        let mut gz = GzEncoder::new(Vec::new(), Compression::default());
+        gz.write_all(&encoded).unwrap();
+        gz.finish().unwrap()
+    }
+
+    /// Converts the profile into the pprof Protobuf format (see `pprof/profile.proto`).
+    fn to_pprof_proto(
+        &self,
+        sample_type: (&str, &str),
+        period_type: (&str, &str),
+        anno_key: Option<String>,
+    ) -> proto::Profile {
         let mut profile = proto::Profile::default();
         let mut strings = StringTable::new();
 
@@ -192,7 +208,7 @@ impl StackProfile {
                 let addr = u64::cast_from(*addr) - 1;
 
                 let loc_id = *location_ids.entry(addr).or_insert_with(|| {
-                    // pprof_types.proto says the location id may be the address, but Polar Signals
+                    // profile.proto says the location id may be the address, but Polar Signals
                     // insists that location ids are sequential, starting with 1.
                     let id = u64::cast_from(profile.location.len()) + 1;
 
@@ -275,11 +291,54 @@ impl StackProfile {
 
         profile.string_table = strings.finish();
 
-        let encoded = profile.encode_to_vec();
+        profile
+    }
 
-        let mut gz = GzEncoder::new(Vec::new(), Compression::default());
-        gz.write_all(&encoded).unwrap();
-        gz.finish().unwrap()
+    /// Converts the profile into a flamegraph SVG, using the given options.
+    #[cfg(feature = "flamegraph")]
+    pub fn to_flamegraph(&self, opts: &mut FlamegraphOptions) -> anyhow::Result<Vec<u8>> {
+        use std::collections::HashMap;
+
+        // We start from a symbolized Protobuf profile. We just pass in empty type names, since
+        // they're not used in the final flamegraph.
+        let profile = self.to_pprof_proto(("", ""), ("", ""), None);
+
+        // Index locations, functions, and strings.
+        let locations: HashMap<u64, proto::Location> =
+            profile.location.into_iter().map(|l| (l.id, l)).collect();
+        let functions: HashMap<u64, proto::Function> =
+            profile.function.into_iter().map(|f| (f.id, f)).collect();
+        let strings = profile.string_table;
+
+        // Resolve stacks as function name vectors, and sum sample values per stack. Also reverse
+        // the stack, since inferno expects it bottom-up.
+        let mut stacks: HashMap<Vec<&str>, i64> = HashMap::new();
+        for sample in profile.sample {
+            let mut stack = Vec::with_capacity(sample.location_id.len());
+            for location in sample.location_id.into_iter().rev() {
+                let location = locations.get(&location).expect("missing location");
+                for line in location.line.iter().rev() {
+                    let function = functions.get(&line.function_id).expect("missing function");
+                    let name = strings.get(function.name as usize).expect("missing string");
+                    stack.push(name.as_str());
+                }
+            }
+            let value = sample.value.first().expect("missing value");
+            *stacks.entry(stack).or_default() += value;
+        }
+
+        // Construct stack lines for inferno.
+        let mut lines = stacks
+            .into_iter()
+            .map(|(stack, value)| format!("{} {}", stack.join(";"), value))
+            .collect::<Vec<_>>();
+        lines.sort();
+
+        // Generate the flamegraph SVG.
+        let mut bytes = Vec::new();
+        let lines = lines.iter().map(|line| line.as_str());
+        inferno::flamegraph::from_lines(opts, lines, &mut bytes)?;
+        Ok(bytes)
     }
 }
 

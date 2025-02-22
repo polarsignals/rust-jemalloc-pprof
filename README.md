@@ -102,6 +102,43 @@ To generate symbolized profiles, enable the `symbolize` crate feature:
 jemalloc_pprof = { version = "0.6", features = ["symbolize"] }
 ```
 
+### Flamegraph SVGs
+
+The `flamegraph` crate feature can also be enabled to generate interactive flamegraph SVGs directly
+(implies the `symbolize` feature):
+
+```toml
+jemalloc_pprof = { version = "0.6", features = ["flamegraph"] }
+```
+
+We can then adjust the example above to also emit a flamegraph SVG:
+
+```rust,ignore
+#[tokio::main]
+async fn main() {
+    let app = axum::Router::new()
+        .route("/debug/pprof/heap", axum::routing::get(handle_get_heap))
+        .route("/debug/pprof/heap/flamegraph", axum::routing::get(handle_get_heap_flamegraph));
+    // ...
+}
+
+pub async fn handle_get_heap_flamegraph() -> Result<impl IntoResponse, (StatusCode, String)> {
+    use axum::body::Body;
+    use axum::http::header::CONTENT_TYPE;
+    use axum::response::Response;
+
+    let mut prof_ctl = jemalloc_pprof::PROF_CTL.as_ref().unwrap().lock().await;
+    require_profiling_activated(&prof_ctl)?;
+    let svg = prof_ctl
+        .dump_flamegraph()
+        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+    Response::builder()
+        .header(CONTENT_TYPE, "image/svg+xml")
+        .body(Body::from(svg))
+        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
+}
+```
+
 ### Writeable temporary directory
 
 The way this library works is that it creates a new temporary file (in the [platform-specific default temp dir](https://docs.rs/tempfile/latest/tempfile/struct.NamedTempFile.html)), and instructs jemalloc to dump a profile into that file. Therefore the platform respective temporary directory must be writeable by the process. After reading and converting it to pprof, the file is cleaned up via the destructor. A single profile tends to be only a few kilobytes large, so it doesn't require a significant space, but it's non-zero and needs to be writeable.
