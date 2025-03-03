@@ -99,7 +99,7 @@ To generate symbolized profiles, enable the `symbolize` crate feature:
 
 ```toml
 [dependencies]
-jemalloc_pprof = { version = "0.6", features = ["symbolize"] }
+jemalloc_pprof = { version = "0.7", features = ["symbolize"] }
 ```
 
 ### Flamegraph SVGs
@@ -108,7 +108,7 @@ The `flamegraph` crate feature can also be enabled to generate interactive flame
 (implies the `symbolize` feature):
 
 ```toml
-jemalloc_pprof = { version = "0.6", features = ["flamegraph"] }
+jemalloc_pprof = { version = "0.7", features = ["flamegraph"] }
 ```
 
 We can then adjust the example above to also emit a flamegraph SVG:
