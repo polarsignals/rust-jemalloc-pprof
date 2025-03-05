@@ -25,8 +25,14 @@ use tracing::error;
 
 use util::{BuildId, Mapping};
 
+#[cfg(not(target_pointer_width = "64"))]
+compile_error!("this module only supports 64-bit targets");
+
 #[cfg(target_os = "linux")]
-mod enabled {
+use linux::collect_shared_objects;
+
+#[cfg(target_os = "linux")]
+mod linux {
     use std::ffi::{CStr, OsStr};
     use std::os::unix::ffi::OsStrExt;
     use std::path::PathBuf;
@@ -304,8 +310,202 @@ mod enabled {
     }
 }
 
+#[cfg(target_os = "macos")]
+use macos::collect_shared_objects;
+
+#[cfg(target_os = "macos")]
+mod macos {
+    #![allow(non_camel_case_types, non_snake_case)]
+
+    use std::{
+        ffi::{CStr, OsStr},
+        os::unix::ffi::OsStrExt,
+        ptr, slice,
+    };
+
+    use mach2::{
+        kern_return::KERN_SUCCESS,
+        message::mach_msg_type_number_t,
+        task::task_info,
+        task_info::{task_dyld_info, TASK_DYLD_INFO},
+        traps::mach_task_self,
+        vm_prot::vm_prot_t,
+        vm_types::natural_t,
+    };
+    use tracing::warn;
+
+    use crate::{LoadedSegment, SharedObject};
+    use util::{BuildId, CastFrom};
+
+    #[repr(C, packed(4))]
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct dyld_image_info64 {
+        pub load_address: u64,
+        pub file_path: u64,
+        pub file_mod_date: u64,
+    }
+
+    #[repr(C, packed(4))]
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct dyld_all_image_infos64 {
+        pub version: u32,
+        pub infoArrayCount: u32,
+        pub infoArray: u64, // pointer to dyld_image_info
+        pub notification: u64,
+        pub processDetachedFromSharedRegion: bool,
+    }
+
+    #[repr(C, packed(4))]
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct mach_header64 {
+        pub magic: u32,
+        pub cputype: u32,
+        pub cpusubtype: u32,
+        pub filetype: u32,
+        pub ncmds: u32,
+        pub sizeofcmds: u32,
+        pub flags: u32,
+        pub reserved: u32,
+    }
+
+    #[repr(C, packed(4))]
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct load_command {
+        pub cmd: u32,
+        pub cmdsize: u32,
+    }
+
+    const LC_SEGMENT_64: u32 = 0x19;
+    const LC_UUID: u32 = 0x1b;
+
+    #[repr(C, packed(4))]
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct segment_command64 {
+        pub cmd: u32,
+        pub cmdsize: u32,
+        pub segname: [u8; 16],
+        pub vmaddr: u64,
+        pub vmsize: u64,
+        pub fileoff: u64,
+        pub filesize: u64,
+        pub maxprot: vm_prot_t,
+        pub initprot: vm_prot_t,
+        pub nsects: u32,
+        pub flags: u32,
+    }
+
+    unsafe fn get_image_infos() -> Result<Vec<dyld_image_info64>, anyhow::Error> {
+        let mut dyld_info: task_dyld_info = Default::default();
+        let mut count: mach_msg_type_number_t =
+            u32::try_from(size_of::<task_dyld_info>() / size_of::<natural_t>()).unwrap();
+
+        let task = mach_task_self();
+        let ret = task_info(
+            task,
+            TASK_DYLD_INFO,
+            &mut dyld_info as *mut _ as *mut _,
+            &mut count,
+        );
+        if ret != KERN_SUCCESS {
+            anyhow::bail!("task_info returned {ret}");
+        }
+
+        let size = dyld_info.all_image_info_size;
+        if size < u64::cast_from(size_of::<dyld_all_image_infos64>()) {
+            anyhow::bail!("all_image_infos is too small (size is {}B)", size);
+        }
+
+        let all_image_infos = ptr::read_unaligned::<dyld_all_image_infos64>(
+            dyld_info.all_image_info_addr as *const _,
+        );
+
+        let count = usize::cast_from(all_image_infos.infoArrayCount);
+
+        let mut infos = Vec::with_capacity(count);
+        slice::from_raw_parts_mut(
+            infos.as_mut_ptr() as *mut u8,
+            count * size_of::<dyld_image_info64>(),
+        )
+        .copy_from_slice(slice::from_raw_parts(
+            all_image_infos.infoArray as *const u8,
+            count * size_of::<dyld_image_info64>(),
+        ));
+        infos.set_len(count);
+
+        Ok(infos)
+    }
+
+    unsafe fn get_shared_object(image: &dyld_image_info64) -> Result<SharedObject, anyhow::Error> {
+        let header = ptr::read_unaligned::<mach_header64>(image.load_address as *const _);
+        let path_name = if image.file_path != 0 {
+            OsStr::from_bytes(CStr::from_ptr(image.file_path as *const i8).to_bytes())
+        } else {
+            OsStr::from_bytes(b"")
+        };
+
+        let mut cmd_address = usize::cast_from(image.load_address) + size_of::<mach_header64>();
+        let mut next_cmd_address = cmd_address;
+        let end_of_cmds = usize::cast_from(image.load_address)
+            + size_of::<mach_header64>()
+            + usize::cast_from(header.sizeofcmds);
+        let mut loaded_segments = Vec::new();
+        let mut build_id = None;
+
+        for _ in 0..header.ncmds {
+            let Some(lc) = (cmd_address + size_of::<load_command>() <= end_of_cmds)
+                .then(|| ptr::read::<load_command>(cmd_address as *const load_command))
+                .filter(|lc| {
+                    next_cmd_address += usize::cast_from(lc.cmdsize);
+                    next_cmd_address <= end_of_cmds
+                })
+            else {
+                warn!(
+                    "overrun parsing headers for {}",
+                    path_name.to_string_lossy()
+                );
+                break;
+            };
+
+            if lc.cmd == LC_SEGMENT_64 {
+                let seg_cmd = ptr::read_unaligned(cmd_address as *const segment_command64);
+
+                loaded_segments.push(LoadedSegment {
+                    file_offset: seg_cmd.fileoff,
+                    memory_offset: usize::cast_from(seg_cmd.vmaddr),
+                    memory_size: usize::cast_from(seg_cmd.vmsize),
+                });
+            } else if lc.cmd == LC_UUID {
+                build_id = Some(BuildId(
+                    slice::from_raw_parts(
+                        (cmd_address + size_of::<load_command>()) as *mut u8,
+                        usize::cast_from(lc.cmdsize) - size_of::<load_command>(),
+                    )
+                    .to_vec(),
+                ));
+            }
+
+            cmd_address = next_cmd_address;
+        }
+
+        Ok(SharedObject {
+            base_address: usize::cast_from(image.load_address),
+            path_name: path_name.into(),
+            build_id,
+            loaded_segments,
+        })
+    }
+
+    pub unsafe fn collect_shared_objects() -> Result<Vec<SharedObject>, anyhow::Error> {
+        let mut objects = Vec::new();
+        for info in get_image_infos()? {
+            objects.push(get_shared_object(&info)?);
+        }
+        Ok(objects)
+    }
+}
+
 /// Mappings of the processes' executable and shared libraries.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
     /// Build a list of mappings for the passed shared objects.
     fn build_mappings(objects: &[SharedObject]) -> Vec<Mapping> {
@@ -328,8 +528,8 @@ pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
         mappings
     }
 
-    // SAFETY: We are on Linux
-    match unsafe { enabled::collect_shared_objects() } {
+    // SAFETY: We are on Linux or MacOS
+    match unsafe { collect_shared_objects() } {
         Ok(objects) => Some(build_mappings(&objects)),
         Err(err) => {
             error!("build ID fetching failed: {err}");
@@ -338,9 +538,9 @@ pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
     }
 });
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
 pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
-    error!("build ID fetching is only supported on Linux");
+    error!("build ID fetching is only supported on Linux or MacOS");
     None
 });
 
@@ -366,4 +566,11 @@ pub struct LoadedSegment {
     pub memory_offset: usize,
     /// Size of the segment in memory.
     pub memory_size: usize,
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn test_collect_shared_objects() {
+    let objects = unsafe { collect_shared_objects() }.unwrap();
+    println!("{:#?}", objects);
 }
