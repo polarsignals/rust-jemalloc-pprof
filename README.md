@@ -57,7 +57,7 @@ async fn main() {
     }
 
     let app = axum::Router::new()
-        .route("/debug/pprof/heap", axum::routing::get(handle_get_heap));
+        .route("/debug/pprof/allocs", axum::routing::get(handle_get_heap));
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
@@ -89,7 +89,7 @@ fn require_profiling_activated(prof_ctl: &jemalloc_pprof::JemallocProfCtl) -> Re
 Then running the application, we can capture a profile and view it the pprof toolchain.
 
 ```shell
-curl localhost:3000/debug/pprof/heap > heap.pb.gz
+curl localhost:3000/debug/pprof/allocs > heap.pb.gz
 pprof -http=:8080 heap.pb.gz
 ```
 
@@ -117,8 +117,8 @@ We can then adjust the example above to also emit a flamegraph SVG:
 #[tokio::main]
 async fn main() {
     let app = axum::Router::new()
-        .route("/debug/pprof/heap", axum::routing::get(handle_get_heap))
-        .route("/debug/pprof/heap/flamegraph", axum::routing::get(handle_get_heap_flamegraph));
+        .route("/debug/pprof/allocs", axum::routing::get(handle_get_heap))
+        .route("/debug/pprof/allocs/flamegraph", axum::routing::get(handle_get_heap_flamegraph));
     // ...
 }
 
