@@ -16,12 +16,12 @@ async fn main() {
         v.push(i);
     }
 
-    let app = axum::Router::new().route("/debug/pprof/heap", axum::routing::get(handle_get_heap));
+    let app = axum::Router::new().route("/debug/pprof/allocs", axum::routing::get(handle_get_heap));
 
     // Add a flamegraph SVG route if enabled via `cargo run -F flamegraph`.
     #[cfg(feature = "flamegraph")]
     let app = app.route(
-        "/debug/pprof/heap/flamegraph",
+        "/debug/pprof/allocs/flamegraph",
         axum::routing::get(handle_get_heap_flamegraph),
     );
 
