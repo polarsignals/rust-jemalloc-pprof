@@ -154,33 +154,13 @@ impl StackProfile {
 
             profile.mapping.push(proto::Mapping {
                 id: mapping_id,
-                memory_start: u64::cast_from(mapping.memory_start),
-                memory_limit: u64::cast_from(mapping.memory_end),
-                file_offset: mapping.file_offset,
+                memory_start: 0,
+                memory_limit: 0,
+                file_offset: 0,
                 filename: filename_idx,
                 build_id: build_id_idx,
                 ..Default::default()
             });
-
-            // This is a is a Polar Signals-specific extension: For correct offline symbolization
-            // they need access to the memory offset of mappings, but the pprof format only has a
-            // field for the file offset. So we instead encode additional information about
-            // mappings in magic comments. There must be exactly one comment for each mapping.
-
-            // Take a shortcut and assume the ELF type is always `ET_DYN`. This is true for shared
-            // libraries and for position-independent executable, so it should always be true for
-            // any mappings we have.
-            // Getting the actual information is annoying. It's in the ELF header (the `e_type`
-            // field), but there is no guarantee that the full ELF header gets mapped, so we might
-            // not be able to find it in memory. We could try to load it from disk instead, but
-            // then we'd have to worry about blocking disk I/O.
-            let elf_type = 3;
-
-            let comment = format!(
-                "executableInfo={:x};{:x};{:x}",
-                elf_type, mapping.file_offset, mapping.memory_offset
-            );
-            profile.comment.push(strings.insert(&comment));
         }
 
         let mut location_ids = BTreeMap::new();
@@ -207,16 +187,26 @@ impl StackProfile {
                 // tools don't seem to get confused by this.
                 let addr = u64::cast_from(*addr) - 1;
 
-                let loc_id = *location_ids.entry(addr).or_insert_with(|| {
+                // Find the mapping for this address (search once)
+                let mapping_info = self.mappings.iter().enumerate().find(|(_, mapping)| {
+                    mapping.memory_start <= addr as usize && mapping.memory_end > addr as usize
+                });
+
+                // Convert runtime address to file-relative address using found mapping data
+                let file_relative_addr = mapping_info
+                    .map(|(_, mapping)| {
+                        (addr as usize - mapping.memory_start + mapping.file_offset as usize) as u64
+                    })
+                    .unwrap_or(addr);
+
+                let loc_id = *location_ids.entry(file_relative_addr).or_insert_with(|| {
                     // profile.proto says the location id may be the address, but Polar Signals
                     // insists that location ids are sequential, starting with 1.
                     let id = u64::cast_from(profile.location.len()) + 1;
 
                     #[allow(unused_mut)] // for feature = "symbolize"
-                    let mut mapping = profile
-                        .mapping
-                        .iter_mut()
-                        .find(|m| m.memory_start <= addr && m.memory_limit > addr);
+                    let mut mapping =
+                        mapping_info.and_then(|(idx, _)| profile.mapping.get_mut(idx));
 
                     // If online symbolization is enabled, resolve the function and line.
                     #[allow(unused_mut)]
@@ -268,7 +258,7 @@ impl StackProfile {
                     profile.location.push(proto::Location {
                         id,
                         mapping_id: mapping.map_or(0, |m| m.id),
-                        address: addr,
+                        address: file_relative_addr,
                         line,
                         ..Default::default()
                     });
