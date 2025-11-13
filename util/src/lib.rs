@@ -195,7 +195,7 @@ impl StackProfile {
                 // Convert runtime address to file-relative address using found mapping data
                 let file_relative_addr = mapping_info
                     .map(|(_, mapping)| {
-                        (addr as usize - mapping.memory_start + mapping.file_offset as usize) as u64
+                        (addr as usize - mapping.memory_start + mapping.memory_offset) as u64
                     })
                     .unwrap_or(addr);
 
