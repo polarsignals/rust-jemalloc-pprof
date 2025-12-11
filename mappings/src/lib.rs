@@ -247,7 +247,7 @@ mod enabled {
     /// Increases `p` as little as possible (including possibly 0)
     /// such that it becomes a multiple of `N`.
     pub const fn align_up<const N: usize>(p: usize) -> usize {
-        if p % N == 0 {
+        if p.is_multiple_of(N) {
             p
         } else {
             p + (N - (p % N))
@@ -268,7 +268,7 @@ mod enabled {
         let align = std::mem::align_of::<T>();
 
         assert!(!ptr.is_null());
-        assert!(address % align == 0, "unaligned pointer");
+        assert!(address.is_multiple_of(align), "unaligned pointer");
     }
 
     fn current_exe_from_dladdr() -> Result<PathBuf, anyhow::Error> {
