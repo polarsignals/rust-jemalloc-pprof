@@ -155,7 +155,7 @@ impl StackProfile {
             profile.mapping.push(proto::Mapping {
                 id: mapping_id,
                 memory_start: 0,
-                memory_limit: 0,
+                memory_limit: u64::MAX,
                 file_offset: 0,
                 filename: filename_idx,
                 build_id: build_id_idx,
