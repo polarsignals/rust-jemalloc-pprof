@@ -29,9 +29,10 @@ use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;
 
+use util::parse_jeheap;
 #[cfg(feature = "flamegraph")]
 pub use util::FlamegraphOptions;
-use util::{parse_jeheap, ProfStartTime};
+pub use util::{BuildId, Mapping, ProfStartTime, StackProfile, StackProfileIter, WeightedStack};
 
 /// Activate jemalloc profiling.
 pub async fn activate_jemalloc_profiling() {
@@ -159,12 +160,17 @@ impl JemallocProfCtl {
         Ok(f.into_file())
     }
 
+    /// Dump a profile and return the parsed [`StackProfile`].
+    pub fn dump_profile(&mut self) -> anyhow::Result<StackProfile> {
+        let f = self.dump()?;
+        let dump_reader = BufReader::new(f);
+        parse_jeheap(dump_reader, MAPPINGS.as_deref())
+    }
+
     /// Dump a profile in pprof format (gzipped protobuf) and
     /// return a buffer with its contents.
     pub fn dump_pprof(&mut self) -> anyhow::Result<Vec<u8>> {
-        let f = self.dump()?;
-        let dump_reader = BufReader::new(f);
-        let profile = parse_jeheap(dump_reader, MAPPINGS.as_deref())?;
+        let profile = self.dump_profile()?;
         let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
         Ok(pprof)
     }
@@ -184,9 +190,7 @@ impl JemallocProfCtl {
         &mut self,
         opts: &mut FlamegraphOptions,
     ) -> anyhow::Result<Vec<u8>> {
-        let f = self.dump()?;
-        let dump_reader = BufReader::new(f);
-        let profile = parse_jeheap(dump_reader, MAPPINGS.as_deref())?;
+        let profile = self.dump_profile()?;
         profile.to_flamegraph(opts)
     }
 }
