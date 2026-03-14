@@ -161,7 +161,7 @@ impl JemallocProfCtl {
     }
 
     /// Dump a profile and return the parsed [`StackProfile`].
-    pub fn dump_stack_profile(&mut self) -> anyhow::Result<StackProfile> {
+    pub fn dump_profile(&mut self) -> anyhow::Result<StackProfile> {
         let f = self.dump()?;
         let dump_reader = BufReader::new(f);
         parse_jeheap(dump_reader, MAPPINGS.as_deref())
@@ -170,7 +170,7 @@ impl JemallocProfCtl {
     /// Dump a profile in pprof format (gzipped protobuf) and
     /// return a buffer with its contents.
     pub fn dump_pprof(&mut self) -> anyhow::Result<Vec<u8>> {
-        let profile = self.dump_stack_profile()?;
+        let profile = self.dump_profile()?;
         let pprof = profile.to_pprof(("inuse_space", "bytes"), ("space", "bytes"), None);
         Ok(pprof)
     }
@@ -190,7 +190,7 @@ impl JemallocProfCtl {
         &mut self,
         opts: &mut FlamegraphOptions,
     ) -> anyhow::Result<Vec<u8>> {
-        let profile = self.dump_stack_profile()?;
+        let profile = self.dump_profile()?;
         profile.to_flamegraph(opts)
     }
 }
