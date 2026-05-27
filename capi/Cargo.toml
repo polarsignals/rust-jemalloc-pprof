@@ -10,7 +10,6 @@ name = "jemalloc_pprof"
 [dependencies]
 libc.workspace = true
 util.workspace = true
-anyhow.workspace = true
 tempfile.workspace = true
 mappings.workspace = true
 errno.workspace = true

@@ -7,9 +7,9 @@ publish = false
 [dependencies]
 jemalloc_pprof = { path = ".." }
 tokio = { version = "1", features = ["full"] }
-axum = "0.8.1"
+axum = "0.8.9"
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = { version = "0.6", features = ["profiling", "stats", "unprefixed_malloc_on_supported_platforms", "background_threads"] }
+tikv-jemallocator = { version = "0.7", features = ["profiling", "stats", "unprefixed_malloc_on_supported_platforms", "background_threads"] }
 
 [features]
 flamegraph = ["jemalloc_pprof/flamegraph"]
