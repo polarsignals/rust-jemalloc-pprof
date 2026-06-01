@@ -32,7 +32,7 @@ tikv-jemallocator = { version = "0.6.0", features = ["profiling", "unprefixed_ma
 
 Then configure the global allocator and configure it with profiling enabled.
 
-```rust,no_run
+```rust,ignore
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -48,7 +48,7 @@ pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0
 
 We recommend serving the profiling data on an HTTP server such as [axum](https://github.com/tokio-rs/axum), that could look like this, and we'll intentionally include a 4mb allocation to trigger sampling.
 
-```rust,no_run
+```rust,ignore
 #[tokio::main]
 async fn main() {
     let mut v = vec![];

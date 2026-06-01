@@ -63,3 +63,5 @@ symbolize = ["util/symbolize"]
 # re-import tokio to enable all its features. This is required to
 # successfully compile the test snipptes that are part of the documentation
 tokio = { version = "1", features = ["full"] }
+tikv-jemallocator = "0.7"
+axum = "0.8"
