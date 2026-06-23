@@ -1,12 +1,12 @@
 [package]
 name = "mappings"
-version = "0.7.2"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Get the mappings of a process (currently only on Linux)"
-publish = true
-license = "Apache-2.0"
-repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
 homepage = "https://crates.io/crates/mappings"
+publish = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,4 +15,4 @@ anyhow.workspace = true
 libc.workspace = true
 once_cell.workspace = true
 tracing.workspace = true
-util.workspace = true
+pprof_util.workspace = true

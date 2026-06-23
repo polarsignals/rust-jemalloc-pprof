@@ -6,7 +6,7 @@ use axum::response::IntoResponse;
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[allow(non_upper_case_globals)]
-#[export_name = "malloc_conf"]
+#[unsafe(export_name = "malloc_conf")]
 pub static malloc_conf: &[u8] = b"prof:true,prof_active:true,lg_prof_sample:19\0";
 
 #[tokio::main]
@@ -59,13 +59,10 @@ pub async fn handle_get_heap_flamegraph() -> Result<impl IntoResponse, (StatusCo
 /// Checks whether jemalloc profiling is activated an returns an error response if not.
 fn require_profiling_activated(
     prof_ctl: &jemalloc_pprof::JemallocProfCtl,
-) -> Result<(), (axum::http::StatusCode, String)> {
+) -> Result<(), (StatusCode, String)> {
     if prof_ctl.activated() {
         Ok(())
     } else {
-        Err((
-            axum::http::StatusCode::FORBIDDEN,
-            "heap profiling not activated".into(),
-        ))
+        Err((StatusCode::FORBIDDEN, "heap profiling not activated".into()))
     }
 }

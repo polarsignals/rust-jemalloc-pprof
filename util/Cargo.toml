@@ -1,11 +1,11 @@
 [package]
 name = "pprof_util"
-version = "0.8.2"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "various utilities for representing and manipulating profiling data"
 publish = true
-license = "Apache-2.0"
-repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
 homepage = "https://crates.io/crates/pprof_util"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

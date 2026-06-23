@@ -15,8 +15,8 @@
 
 //! Cast utilities.
 
-use num::traits::bounds::UpperBounded;
 use num::Signed;
+use num::traits::bounds::UpperBounded;
 use std::error::Error;
 use std::fmt;
 use std::ops::Deref;
@@ -178,11 +178,7 @@ macro_rules! try_cast_from {
             fn try_cast_from(from: $from) -> Option<$to> {
                 let to = from as $to;
                 let inverse = to as $from;
-                if from == inverse {
-                    Some(to)
-                } else {
-                    None
-                }
+                if from == inverse { Some(to) } else { None }
             }
         }
     };

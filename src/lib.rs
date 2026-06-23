@@ -29,10 +29,12 @@ use tempfile::NamedTempFile;
 use tikv_jemalloc_ctl::raw;
 use tokio::sync::Mutex;
 
-use util::parse_jeheap;
 #[cfg(feature = "flamegraph")]
-pub use util::FlamegraphOptions;
-pub use util::{BuildId, Mapping, ProfStartTime, StackProfile, StackProfileIter, WeightedStack};
+pub use pprof_util::FlamegraphOptions;
+use pprof_util::parse_jeheap;
+pub use pprof_util::{
+    BuildId, Mapping, ProfStartTime, StackProfile, StackProfileIter, WeightedStack,
+};
 
 /// Activate jemalloc profiling.
 pub async fn activate_jemalloc_profiling() {
@@ -152,7 +154,7 @@ impl JemallocProfCtl {
     /// Dump a profile into a temporary file and return it.
     pub fn dump(&mut self) -> anyhow::Result<std::fs::File> {
         let f = NamedTempFile::new()?;
-        let path = CString::new(f.path().as_os_str().as_encoded_bytes()).unwrap();
+        let path = CString::new(f.path().as_os_str().as_encoded_bytes())?;
 
         // SAFETY: "prof.dump" is documented as being writable and taking a C string as input:
         // http://jemalloc.net/jemalloc.3.html#prof.dump

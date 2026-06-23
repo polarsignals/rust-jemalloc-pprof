@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use once_cell::sync::Lazy;
 use tracing::error;
 
-use util::{BuildId, Mapping};
+use pprof_util::{BuildId, Mapping};
 
 #[cfg(target_os = "linux")]
 mod enabled {
@@ -34,10 +34,10 @@ mod enabled {
 
     use anyhow::Context;
     use libc::{
-        c_int, c_void, dl_iterate_phdr, dl_phdr_info, size_t, Elf64_Word, PT_LOAD, PT_NOTE,
+        Elf64_Word, PT_LOAD, PT_NOTE, c_int, c_void, dl_iterate_phdr, dl_phdr_info, size_t,
     };
 
-    use util::{BuildId, CastFrom};
+    use pprof_util::{BuildId, CastFrom};
 
     use crate::LoadedSegment;
 
