@@ -13,17 +13,62 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Linux-specific process introspection.
+//! Unix process introspection.
 
 //! Utility crate to extract information about the running process.
 //!
-//! Currently only works on Linux.
+//! Currently supports Linux and macOS.
+
+#[cfg(all(
+    any(target_os = "linux", target_os = "macos"),
+    not(target_pointer_width = "64")
+))]
+compile_error!("this module only supports 64-bit targets");
+
 use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use tracing::error;
 
 use util::{BuildId, Mapping};
+
+fn build_mappings(objects: &[SharedObject]) -> Vec<Mapping> {
+    let mut mappings = Vec::new();
+    for object in objects {
+        for segment in &object.loaded_segments {
+            // Some platforms can report a negative slide for relocated images.
+            // Casting to usize preserves the two's complement bit pattern, so a
+            // wrapping add still yields the correct runtime start address.
+            let memory_start = object.base_address.wrapping_add(segment.memory_offset);
+            mappings.push(Mapping {
+                memory_start,
+                memory_end: memory_start.wrapping_add(segment.memory_size),
+                memory_offset: segment.memory_offset,
+                file_offset: segment.file_offset,
+                pathname: object.path_name.clone(),
+                build_id: object.build_id.clone(),
+            });
+        }
+    }
+    mappings
+}
+
+/// Asserts that the given pointer is valid.
+///
+/// # Panics
+///
+/// Panics if the given pointer:
+///  * is a null pointer
+///  * is not properly aligned for `T`
+fn assert_pointer_valid<T>(ptr: *const T) {
+    #[allow(clippy::as_conversions)]
+    let address = ptr as usize;
+    let align = std::mem::align_of::<T>();
+
+    assert!(!ptr.is_null());
+    assert!(address.is_multiple_of(align), "unaligned pointer");
+}
 
 #[cfg(target_os = "linux")]
 mod enabled {
@@ -39,7 +84,7 @@ mod enabled {
 
     use util::{BuildId, CastFrom};
 
-    use crate::LoadedSegment;
+    use crate::{assert_pointer_valid, LoadedSegment};
 
     use super::SharedObject;
 
@@ -254,23 +299,6 @@ mod enabled {
         }
     }
 
-    /// Asserts that the given pointer is valid.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the given pointer:
-    ///  * is a null pointer
-    ///  * is not properly aligned for `T`
-    fn assert_pointer_valid<T>(ptr: *const T) {
-        // No other known way to convert a pointer to `usize`.
-        #[allow(clippy::as_conversions)]
-        let address = ptr as usize;
-        let align = std::mem::align_of::<T>();
-
-        assert!(!ptr.is_null());
-        assert!(address.is_multiple_of(align), "unaligned pointer");
-    }
-
     fn current_exe_from_dladdr() -> Result<PathBuf, anyhow::Error> {
         let progname = unsafe {
             let mut dlinfo = std::mem::MaybeUninit::uninit();
@@ -304,43 +332,231 @@ mod enabled {
     }
 }
 
-/// Mappings of the processes' executable and shared libraries.
-#[cfg(target_os = "linux")]
-pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
-    /// Build a list of mappings for the passed shared objects.
-    fn build_mappings(objects: &[SharedObject]) -> Vec<Mapping> {
-        let mut mappings = Vec::new();
-        for object in objects {
-            for segment in &object.loaded_segments {
-                // I have observed that `memory_offset` can be negative on some very old
-                // versions of Linux (e.g. CentOS 7), so use wrapping add here.
-                let memory_start = object.base_address.wrapping_add(segment.memory_offset);
-                mappings.push(Mapping {
-                    memory_start,
-                    memory_end: memory_start + segment.memory_size,
-                    memory_offset: segment.memory_offset,
-                    file_offset: segment.file_offset,
-                    pathname: object.path_name.clone(),
-                    build_id: object.build_id.clone(),
-                });
-            }
-        }
-        mappings
+#[cfg(target_os = "macos")]
+#[allow(deprecated)]
+mod enabled {
+    use std::ffi::{CStr, OsStr};
+    use std::mem::size_of;
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::PathBuf;
+
+    use anyhow::Context;
+    use libc::{
+        _dyld_get_image_header, _dyld_get_image_name, _dyld_get_image_vmaddr_slide,
+        _dyld_image_count, load_command, mach_header_64, segment_command_64, LC_SEGMENT_64,
+        MH_MAGIC_64, VM_PROT_EXECUTE, VM_PROT_READ,
+    };
+
+    use util::{BuildId, CastFrom};
+
+    use crate::{assert_pointer_valid, LoadedSegment, SharedObject};
+
+    const LC_UUID: u32 = 0x1b;
+
+    #[repr(C)]
+    struct UuidCommand {
+        cmd: u32,
+        cmdsize: u32,
+        uuid: [u8; 16],
     }
 
-    // SAFETY: We are on Linux
+    fn should_collect_segment(segment: &segment_command_64) -> bool {
+        segment.vmsize != 0 && (segment.initprot & (VM_PROT_READ | VM_PROT_EXECUTE)) != 0
+    }
+
+    pub unsafe fn collect_shared_objects() -> Result<Vec<SharedObject>, anyhow::Error> {
+        let image_count = unsafe { _dyld_image_count() };
+        let mut objects = Vec::with_capacity(usize::cast_from(image_count));
+
+        for image_index in 0..image_count {
+            let Some(object) = (unsafe { collect_image(image_index) })
+                .with_context(|| format!("failed to inspect loaded image {image_index}"))?
+            else {
+                continue;
+            };
+            objects.push(object);
+        }
+
+        Ok(objects)
+    }
+
+    unsafe fn collect_image(image_index: u32) -> Result<Option<SharedObject>, anyhow::Error> {
+        let header_ptr = unsafe { _dyld_get_image_header(image_index) };
+        if header_ptr.is_null() {
+            return Ok(None);
+        }
+
+        let header_ptr = header_ptr.cast::<mach_header_64>();
+        assert_pointer_valid(header_ptr);
+        let header = unsafe { header_ptr.as_ref() }.expect("pointer is valid");
+
+        if header.magic != MH_MAGIC_64 {
+            return Ok(None);
+        }
+
+        let path_name = match current_image_name(image_index)? {
+            Some(path) => path,
+            None if image_index == 0 => std::env::current_exe()
+                .context("failed to read the name of the current executable")?,
+            None => return Ok(None),
+        };
+
+        let base_address = {
+            let slide = unsafe { _dyld_get_image_vmaddr_slide(image_index) };
+            #[allow(clippy::as_conversions)]
+            {
+                slide as usize
+            }
+        };
+
+        let mut loaded_segments = Vec::new();
+        let mut build_id = None;
+        let mut remaining_cmd_bytes = usize::cast_from(header.sizeofcmds);
+        let mut cmd_ptr = unsafe { header_ptr.cast::<u8>().add(size_of::<mach_header_64>()) };
+
+        for _ in 0..header.ncmds {
+            if remaining_cmd_bytes < size_of::<load_command>() {
+                anyhow::bail!("truncated load commands");
+            }
+
+            let load_cmd = cmd_ptr.cast::<load_command>();
+            assert_pointer_valid(load_cmd);
+            let load_cmd = unsafe { load_cmd.as_ref() }.expect("pointer is valid");
+            let cmdsize = usize::cast_from(load_cmd.cmdsize);
+
+            if cmdsize < size_of::<load_command>() || cmdsize > remaining_cmd_bytes {
+                anyhow::bail!("invalid load command size {}", load_cmd.cmdsize);
+            }
+
+            match load_cmd.cmd {
+                LC_SEGMENT_64 => {
+                    if cmdsize < size_of::<segment_command_64>() {
+                        anyhow::bail!("truncated LC_SEGMENT_64 command");
+                    }
+
+                    let segment = cmd_ptr.cast::<segment_command_64>();
+                    assert_pointer_valid(segment);
+                    let segment = unsafe { segment.as_ref() }.expect("pointer is valid");
+
+                    if should_collect_segment(segment) {
+                        loaded_segments.push(LoadedSegment {
+                            file_offset: segment.fileoff,
+                            memory_offset: usize::cast_from(segment.vmaddr),
+                            memory_size: usize::cast_from(segment.vmsize),
+                        });
+                    }
+                }
+                LC_UUID if build_id.is_none() => {
+                    if cmdsize < size_of::<UuidCommand>() {
+                        anyhow::bail!("truncated LC_UUID command");
+                    }
+
+                    let uuid = cmd_ptr.cast::<UuidCommand>();
+                    assert_pointer_valid(uuid);
+                    let uuid = unsafe { uuid.as_ref() }.expect("pointer is valid");
+                    build_id = Some(BuildId(uuid.uuid.to_vec()));
+                }
+                _ => {}
+            }
+
+            cmd_ptr = unsafe { cmd_ptr.add(cmdsize) };
+            remaining_cmd_bytes -= cmdsize;
+        }
+
+        Ok(Some(SharedObject {
+            base_address,
+            path_name,
+            build_id,
+            loaded_segments,
+        }))
+    }
+
+    fn current_image_name(image_index: u32) -> Result<Option<PathBuf>, anyhow::Error> {
+        let name = unsafe { _dyld_get_image_name(image_index) };
+        if name.is_null() {
+            return Ok(None);
+        }
+
+        assert_pointer_valid(name);
+        let name = unsafe { CStr::from_ptr(name) };
+        if name.to_bytes().is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(OsStr::from_bytes(name.to_bytes()).into()))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use libc::{
+            segment_command_64, VM_PROT_EXECUTE, VM_PROT_NONE, VM_PROT_READ, VM_PROT_WRITE,
+        };
+
+        #[test]
+        fn filters_out_non_readable_and_non_executable_segments() {
+            let inaccessible = segment_command_64 {
+                cmd: 0,
+                cmdsize: 0,
+                segname: [0; 16],
+                vmaddr: 0,
+                vmsize: 4096,
+                fileoff: 0,
+                filesize: 0,
+                maxprot: VM_PROT_NONE,
+                initprot: VM_PROT_NONE,
+                nsects: 0,
+                flags: 0,
+            };
+            assert!(!super::should_collect_segment(&inaccessible));
+
+            let writable_only = segment_command_64 {
+                initprot: VM_PROT_WRITE,
+                ..inaccessible
+            };
+            assert!(!super::should_collect_segment(&writable_only));
+
+            let readable = segment_command_64 {
+                initprot: VM_PROT_READ,
+                ..inaccessible
+            };
+            assert!(super::should_collect_segment(&readable));
+
+            let executable = segment_command_64 {
+                initprot: VM_PROT_EXECUTE,
+                ..inaccessible
+            };
+            assert!(super::should_collect_segment(&executable));
+        }
+
+        #[test]
+        fn collects_macho_images_for_current_process() {
+            let objects =
+                unsafe { super::collect_shared_objects() }.expect("macOS image enumeration works");
+            assert!(!objects.is_empty());
+            assert!(objects
+                .iter()
+                .any(|object| !object.loaded_segments.is_empty()));
+            assert!(objects.iter().any(|object| object.build_id.is_some()));
+        }
+    }
+}
+
+/// Mappings of the processes' executable and shared libraries.
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
+    // SAFETY: each platform-specific implementation documents its preconditions.
     match unsafe { enabled::collect_shared_objects() } {
         Ok(objects) => Some(build_mappings(&objects)),
         Err(err) => {
-            error!("build ID fetching failed: {err}");
+            error!("shared object metadata collection failed: {err}");
             None
         }
     }
 });
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 pub static MAPPINGS: Lazy<Option<Vec<Mapping>>> = Lazy::new(|| {
-    error!("build ID fetching is only supported on Linux");
+    tracing::error!("build ID fetching is only supported on Linux or macOS");
     None
 });
 

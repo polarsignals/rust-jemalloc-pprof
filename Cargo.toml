@@ -65,3 +65,5 @@ symbolize = ["util/symbolize"]
 tokio = { version = "1", features = ["full"] }
 tikv-jemallocator = "0.7"
 axum = "0.8"
+flate2.workspace = true
+prost.workspace = true
