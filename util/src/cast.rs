@@ -15,8 +15,8 @@
 
 //! Cast utilities.
 
-use num::traits::bounds::UpperBounded;
-use num::Signed;
+use num_traits::bounds::UpperBounded;
+use num_traits::Signed;
 use std::error::Error;
 use std::fmt;
 use std::ops::Deref;
