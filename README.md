@@ -10,7 +10,10 @@ This code was originally developed as part of [Materialize](https://github.com/M
 
 ## Requirements
 
-Currently, this library only supports Linux.
+This library supports profiling-enabled `jemalloc` on Unix platforms such as Linux and macOS.
+On Linux it exports shared-object mappings with GNU build IDs, and on macOS it exports the same
+mapping metadata using Mach-O image information plus UUID load commands. Other Unix platforms
+gracefully fall back to profiles without that extra mapping metadata.
 
 Furthermore, you must be able to switch your allocator to `jemalloc`.
 If you need to continue using the default system allocator for any reason,
@@ -171,8 +174,9 @@ Once the prerequisites are installed, the library can be built by
 running `make capi`. There are three files of
 interest:
 
-- The library itself, produced at
-  `target/release/libjemalloc_pprof.so`
+- The library itself, produced as a platform-specific shared library such as
+  `target/release/libjemalloc_pprof.so` on Linux or
+  `target/release/libjemalloc_pprof.dylib` on macOS
 - A header file, at `capi/include/jemalloc_pprof.h`
 - A manual page, at `capi/man/jemalloc_pprof.3`.
 

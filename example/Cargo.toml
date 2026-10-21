@@ -8,8 +8,11 @@ publish = false
 jemalloc_pprof = { path = ".." }
 tokio = { version = "1", features = ["full"] }
 axum = "0.8.9"
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
+[target.'cfg(all(not(target_env = "msvc"), not(target_os = "macos")))'.dependencies]
 tikv-jemallocator = { version = "0.7", features = ["profiling", "stats", "unprefixed_malloc_on_supported_platforms", "background_threads"] }
+
+[target.'cfg(all(not(target_env = "msvc"), target_os = "macos"))'.dependencies]
+tikv-jemallocator = { version = "0.7", features = ["profiling", "stats", "unprefixed_malloc_on_supported_platforms"] }
 
 [features]
 flamegraph = ["jemalloc_pprof/flamegraph"]

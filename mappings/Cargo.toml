@@ -2,7 +2,7 @@
 name = "mappings"
 version = "0.7.2"
 edition = "2021"
-description = "Get the mappings of a process (currently only on Linux)"
+description = "Get the mappings of a process on Linux and macOS"
 publish = true
 license = "Apache-2.0"
 repository = "https://github.com/polarsignals/rust-jemalloc-pprof"
